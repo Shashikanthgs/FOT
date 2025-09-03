@@ -99,6 +99,16 @@
                 </ul>
             </li>
             <li><a href="#about">About</a></li>
+            <li class="dropdown">
+                <a href="#Expiry dates">Expiry dates</a>
+                <ul class="dropdown-menu">
+                    <li>
+                        <select id="ExpDate" required>
+                            <option value="" disabled>Select a date</option>
+                        </select>
+                    </li>
+                </ul>
+            </li>
         </ul>
     </nav>
 
@@ -1058,6 +1068,7 @@
         function renderScrips(data) {
             const scripSelect = document.getElementById('scrip');
             scripSelect.innerHTML = '<option value="" disabled selected>Select a scrip</option>';
+            
             console.log('Dropdown data:', data); // Debug: show received data
             data.forEach(scrip => {
                 // Fallback if symbol is missing
@@ -1129,13 +1140,28 @@
 
         // Render expiries
         function renderExpiries(expiries) {
+            const ExpSelect = document.getElementById('ExpDate');
+            ExpSelect.innerHTML = '<option value="" disabled>Select a date</option>';            
             if (!expiries || !Array.isArray(expiries) || expiries.length === 0) {
                 showErrorMessage('No valid expiry dates available in response.');
                 return;
             }
-            selectedExpiry = expiries[0];
-            console.log('Selected expiry:', selectedExpiry);
-            startFetching();
+
+            console.log('Dropdown data:', expiries); // Debug: show received data
+        
+            // Populate dropdown with values from JSON
+            expiries.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item; 
+                option.textContent = String(item); 
+                ExpSelect.appendChild(option);
+            });
+            ExpSelect.disabled = false; // Ensure dropdown is enabled
+
+
+            // selectedExpiry = expiries[0];
+            // console.log('Selected expiry:', selectedExpiry);
+            // startFetching();
         }
 
         // Fetch option chain
@@ -1645,29 +1671,6 @@
             }
         }
 
-        // Event listeners
-        document.getElementById('scrip').addEventListener('change', () => {
-            stopFetching();
-            previousChainData = null;
-            previousMaxStrikes = { callOi: null, callOiChg: null, callVol: null, putOi: null, putOiChg: null, putVol: null };
-            chartDataPoints = { timestamps: [], oiChangePE: [], oiChangeCE: [], oiChangePEMinusCE: [] };
-            if (oiChart) {
-                const timeLabels = generateTimeLabels();
-                oiChart.data.datasets[0].data = Array(timeLabels.length).fill(null);
-                oiChart.data.datasets[1].data = Array(timeLabels.length).fill(null);
-                oiChart.data.datasets[2].data = Array(timeLabels.length).fill(null);
-                oiChart.update();
-                console.log('Main chart data reset on scrip change.');
-            }
-            // Extract selected scrip details
-            const selected = document.getElementById('scrip').value;
-            if (!selected) return;
-            const [scrip_id, segment] = selected.split('|');
-            // Store for option chain fetch
-            window.selectedSecurityId = scrip_id;
-            window.selectedSegment = segment;
-            fetchExpiries();
-        });
         document.querySelectorAll('input[name="strikeOption"], input[name="tableOrder"]').forEach(input => {
             input.addEventListener('change', debouncedFetchChain);
         });

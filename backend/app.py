@@ -63,7 +63,7 @@ def get_expiries():
         if expiry_list is None:
             return jsonify({'error': 'Failed to fetch expiry list data'}), 500
             
-        return expiry_list
+        return jsonify(expiry_list)
         
     except Exception as e:
         print(f"Error in get_expiries: {str(e)}")
@@ -75,11 +75,8 @@ def get_option_chain():
     return
 
 
-@app.route('/get_all_scrips', methods=['GET', 'OPTIONS'])
+@app.route('/get_all_scrips', methods=['GET'])
 def get_all_scrips():
-    
-    if request.method == 'OPTIONS':
-        return make_response('', 200)
 
     if dhan_client.instruments_df.empty:
         return jsonify({"error": "Instrument data not loaded"}), 500
