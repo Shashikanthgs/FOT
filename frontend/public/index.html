@@ -1158,10 +1158,13 @@
             });
             ExpSelect.disabled = false; // Ensure dropdown is enabled
 
-
+            // Extract selected scrip details
+            const selected = document.getElementById('ExpDate').value;
+            if (!selected) return;
+            selectedExpiry = selected;
             // selectedExpiry = expiries[0];
             // console.log('Selected expiry:', selectedExpiry);
-            // startFetching();
+            startFetching();
         }
 
         // Fetch option chain
@@ -1170,13 +1173,12 @@
             const segment = window.selectedSegment;
             const strikeOption = document.querySelector('input[name="strikeOption"]:checked')?.value || '12';
             const tableOrder = document.querySelector('input[name="tableOrder"]:checked')?.value || 'descending';
-            const expiry = selectedExpiry;
-
-            if (!scrip_id || !segment || !expiry) {
+        
+            if (!scrip_id || !segment || !selectedExpiry) {
                 showErrorMessage('Please select a scrip and ensure an expiry is available.');
                 return;
             }
-            const requestBody = { underlying_scrip: parseInt(scrip_id), underlying_seg: segment, expiry };
+            const requestBody = { underlying_scrip: parseInt(scrip_id), underlying_seg: segment, expiry: selectedExpiry };
             console.log('Sending request to /get_option_chain:', JSON.stringify(requestBody, null, 2));
             if (lastRequestBody && JSON.stringify(requestBody) === JSON.stringify(lastRequestBody) &&
                 strikeOption === lastRequestBody.strikeOption && tableOrder === lastRequestBody.tableOrder) {
@@ -1204,7 +1206,7 @@
                         return;
                     }
 
-                    if (!data.chain || !data.totals || !data.atm_strike) {
+                    if (!data.chain) {
                         showErrorMessage('Invalid option chain data received.');
                         return;
                     }
@@ -1227,238 +1229,238 @@
         }
 
         // Render table
-        // function renderTable(data, strikeOption, tableOrder) {
-        //     const tbody = document.getElementById('chainBody');
-        //     const tfoot = document.getElementById('totalsFoot');
-        //     const dateTimeHeader = document.getElementById('dateTimeHeader');
+        function renderTable(data, strikeOption, tableOrder) {
+            const tbody = document.getElementById('chainBody');
+            const tfoot = document.getElementById('totalsFoot');
+            const dateTimeHeader = document.getElementById('dateTimeHeader');
 
-        //     const timestamp = formatTimestamp();
-        //     const [date, time] = timestamp.split(', ');
-        //     dateTimeHeader.innerHTML = `${date}<br>${time}`;
+            const timestamp = formatTimestamp();
+            const [date, time] = timestamp.split(', ');
+            dateTimeHeader.innerHTML = `${date}<br>${time}`;
 
-        //     let filteredChain = data.chain;
-        //     if (strikeOption === '12') {
-        //         const spotPrice = underlyingValue;
-        //         if (spotPrice === 0) {
-        //             console.warn('Spot price unavailable, showing all strikes.');
-        //         } else {
-        //             const sortedStrikes = data.chain.map(row => row.strike).sort((a, b) => a - b);
-        //             const strikesAbove = sortedStrikes.filter(strike => strike >= spotPrice).slice(0, 12);
-        //             const strikesBelow = sortedStrikes.filter(strike => strike < spotPrice).slice(-12);
-        //             const selectedStrikes = [...strikesBelow, ...strikesAbove].sort((a, b) => a - b);
-        //             filteredChain = data.chain.filter(row => selectedStrikes.includes(row.strike));
-        //         }
-        //     }
+            let filteredChain = data.chain;
+            if (strikeOption === '12') {
+                const spotPrice = underlyingValue;
+                if (spotPrice === 0) {
+                    console.warn('Spot price unavailable, showing all strikes.');
+                } else {
+                    const sortedStrikes = data.chain.map(row => row.strike).sort((a, b) => a - b);
+                    const strikesAbove = sortedStrikes.filter(strike => strike >= spotPrice).slice(0, 12);
+                    const strikesBelow = sortedStrikes.filter(strike => strike < spotPrice).slice(-12);
+                    const selectedStrikes = [...strikesBelow, ...strikesAbove].sort((a, b) => a - b);
+                    filteredChain = data.chain.filter(row => selectedStrikes.includes(row.strike));
+                }
+            }
 
-        //     filteredChain.sort((a, b) => tableOrder === 'ascending' ? a.strike - b.strike : b.strike - a.strike);
+            filteredChain.sort((a, b) => tableOrder === 'ascending' ? a.strike - b.strike : b.strike - a.strike);
 
-        //     const maxValues = {
-        //         callOiChg: { max: 0, second: 0, third: 0, maxStrike: null },
-        //         callOi: { max: 0, second: 0, third: 0, maxStrike: null },
-        //         callVol: { max: 0, second: 0, third: 0, maxStrike: null },
-        //         putVol: { max: 0, second: 0, third: 0, maxStrike: null },
-        //         putOi: { max: 0, second: 0, third: 0, maxStrike: null },
-        //         putOiChg: { max: 0, second: 0, third: 0, maxStrike: null }
-        //     };
+            const maxValues = {
+                callOiChg: { max: 0, second: 0, third: 0, maxStrike: null },
+                callOi: { max: 0, second: 0, third: 0, maxStrike: null },
+                callVol: { max: 0, second: 0, third: 0, maxStrike: null },
+                putVol: { max: 0, second: 0, third: 0, maxStrike: null },
+                putOi: { max: 0, second: 0, third: 0, maxStrike: null },
+                putOiChg: { max: 0, second: 0, third: 0, maxStrike: null }
+            };
 
-        //     const getTopThree = (values, strikes) => {
-        //         const validValues = values
-        //             .map((v, i) => ({ value: v, strike: strikes[i] }))
-        //             .filter(item => item.value > 0)
-        //             .sort((a, b) => b.value - a.value);
-        //         return {
-        //             max: validValues[0]?.value || 0,
-        //             second: validValues[1]?.value || 0,
-        //             third: validValues[2]?.value || 0,
-        //             maxStrike: validValues[0]?.strike || null
-        //         };
-        //     };
+            const getTopThree = (values, strikes) => {
+                const validValues = values
+                    .map((v, i) => ({ value: v, strike: strikes[i] }))
+                    .filter(item => item.value > 0)
+                    .sort((a, b) => b.value - a.value);
+                return {
+                    max: validValues[0]?.value || 0,
+                    second: validValues[1]?.value || 0,
+                    third: validValues[2]?.value || 0,
+                    maxStrike: validValues[0]?.strike || null
+                };
+            };
 
-        //     const strikes = filteredChain.map(row => row.strike);
-        //     maxValues.callOiChg = getTopThree(filteredChain.map(row => row.call_oi_chg >= 0 ? row.call_oi_chg : 0), strikes);
-        //     maxValues.callOi = getTopThree(filteredChain.map(row => row.call_oi >= 0 ? row.call_oi : 0), strikes);
-        //     maxValues.callVol = getTopThree(filteredChain.map(row => Math.abs(row.call_vol || 0)), strikes);
-        //     maxValues.putVol = getTopThree(filteredChain.map(row => Math.abs(row.put_vol || 0)), strikes);
-        //     maxValues.putOi = getTopThree(filteredChain.map(row => row.put_oi >= 0 ? row.put_oi : 0), strikes);
-        //     maxValues.putOiChg = getTopThree(filteredChain.map(row => row.put_oi_chg >= 0 ? row.put_oi_chg : 0), strikes);
+            const strikes = filteredChain.map(row => row.strike);
+            maxValues.callOiChg = getTopThree(filteredChain.map(row => row.call_oi_chg >= 0 ? row.call_oi_chg : 0), strikes);
+            maxValues.callOi = getTopThree(filteredChain.map(row => row.call_oi >= 0 ? row.call_oi : 0), strikes);
+            maxValues.callVol = getTopThree(filteredChain.map(row => Math.abs(row.call_vol || 0)), strikes);
+            maxValues.putVol = getTopThree(filteredChain.map(row => Math.abs(row.put_vol || 0)), strikes);
+            maxValues.putOi = getTopThree(filteredChain.map(row => row.put_oi >= 0 ? row.put_oi : 0), strikes);
+            maxValues.putOiChg = getTopThree(filteredChain.map(row => row.put_oi_chg >= 0 ? row.put_oi_chg : 0), strikes);
 
-        //     const shifts = [];
-        //     const metrics = [
-        //         { key: 'callOi', name: 'Call OI', current: maxValues.callOi.maxStrike, previous: previousMaxStrikes.callOi },
-        //         { key: 'callOiChg', name: 'Call OI Chg', current: maxValues.callOiChg.maxStrike, previous: previousMaxStrikes.callOiChg },
-        //         { key: 'callVol', name: 'Call Vol', current: maxValues.callVol.maxStrike, previous: previousMaxStrikes.callVol },
-        //         { key: 'putOi', name: 'Put OI', current: maxValues.putOi.maxStrike, previous: previousMaxStrikes.putOi },
-        //         { key: 'putOiChg', name: 'Put OI Chg', current: maxValues.putOiChg.maxStrike, previous: previousMaxStrikes.putOiChg },
-        //         { key: 'putVol', name: 'Put Vol', current: maxValues.putVol.maxStrike, previous: previousMaxStrikes.putVol }
-        //     ];
+            const shifts = [];
+            const metrics = [
+                { key: 'callOi', name: 'Call OI', current: maxValues.callOi.maxStrike, previous: previousMaxStrikes.callOi },
+                { key: 'callOiChg', name: 'Call OI Chg', current: maxValues.callOiChg.maxStrike, previous: previousMaxStrikes.callOiChg },
+                { key: 'callVol', name: 'Call Vol', current: maxValues.callVol.maxStrike, previous: previousMaxStrikes.callVol },
+                { key: 'putOi', name: 'Put OI', current: maxValues.putOi.maxStrike, previous: previousMaxStrikes.putOi },
+                { key: 'putOiChg', name: 'Put OI Chg', current: maxValues.putOiChg.maxStrike, previous: previousMaxStrikes.putOiChg },
+                { key: 'putVol', name: 'Put Vol', current: maxValues.putVol.maxStrike, previous: previousMaxStrikes.putVol }
+            ];
 
-        //     if (previousChainData) {
-        //         metrics.forEach(metric => {
-        //             if (metric.current !== null && metric.previous !== null && metric.current !== metric.previous) {
-        //                 const direction = metric.current > metric.previous ? 'up' : 'down';
-        //                 const timestamp = formatTimestamp().split(', ')[1];
-        //                 shifts.push({
-        //                     metric: metric.name,
-        //                     from: metric.previous,
-        //                     to: metric.current,
-        //                     direction: direction,
-        //                     timestamp: timestamp
-        //                 });
-        //             }
-        //         });
-        //     }
+            if (previousChainData) {
+                metrics.forEach(metric => {
+                    if (metric.current !== null && metric.previous !== null && metric.current !== metric.previous) {
+                        const direction = metric.current > metric.previous ? 'up' : 'down';
+                        const timestamp = formatTimestamp().split(', ')[1];
+                        shifts.push({
+                            metric: metric.name,
+                            from: metric.previous,
+                            to: metric.current,
+                            direction: direction,
+                            timestamp: timestamp
+                        });
+                    }
+                });
+            }
 
-        //     previousMaxStrikes = {
-        //         callOi: maxValues.callOi.maxStrike,
-        //         callOiChg: maxValues.callOiChg.maxStrike,
-        //         callVol: maxValues.callVol.maxStrike,
-        //         putOi: maxValues.putOi.maxStrike,
-        //         putOiChg: maxValues.putOiChg.maxStrike,
-        //         putVol: maxValues.putVol.maxStrike
-        //     };
+            previousMaxStrikes = {
+                callOi: maxValues.callOi.maxStrike,
+                callOiChg: maxValues.callOiChg.maxStrike,
+                callVol: maxValues.callVol.maxStrike,
+                putOi: maxValues.putOi.maxStrike,
+                putOiChg: maxValues.putOiChg.maxStrike,
+                putVol: maxValues.putVol.maxStrike
+            };
 
-        //     const spotPrice = underlyingValue;
-        //     let spotRowIndex = -1;
-        //     if (spotPrice > 0) {
-        //         const sortedStrikes = filteredChain.map(row => row.strike);
-        //         spotRowIndex = tableOrder === 'ascending'
-        //             ? sortedStrikes.findIndex((strike, index) => index < sortedStrikes.length - 1 && strike <= spotPrice && sortedStrikes[index + 1] > spotPrice)
-        //             : sortedStrikes.findIndex((strike, index) => index < sortedStrikes.length - 1 && strike > spotPrice && sortedStrikes[index + 1] <= spotPrice);
-        //     }
+            const spotPrice = underlyingValue;
+            let spotRowIndex = -1;
+            if (spotPrice > 0) {
+                const sortedStrikes = filteredChain.map(row => row.strike);
+                spotRowIndex = tableOrder === 'ascending'
+                    ? sortedStrikes.findIndex((strike, index) => index < sortedStrikes.length - 1 && strike <= spotPrice && sortedStrikes[index + 1] > spotPrice)
+                    : sortedStrikes.findIndex((strike, index) => index < sortedStrikes.length - 1 && strike > spotPrice && sortedStrikes[index + 1] <= spotPrice);
+            }
 
-        //     const fragment = document.createDocumentFragment();
-        //     let spotRowInserted = false;
+            const fragment = document.createDocumentFragment();
+            let spotRowInserted = false;
 
-        //     if (shifts.length > 0) {
-        //         shifts.forEach(shift => {
-        //             const shiftRow = document.createElement('tr');
-        //             shiftRow.classList.add('shift-row');
-        //             const message = `${shift.metric} --> ${shift.from.toFixed(2)} --> ${shift.to.toFixed(2)} at ${shift.timestamp}`;
-        //             shiftRow.innerHTML = `<td colspan="7"></td><td><span class="shift-${shift.direction}">${message}</span></td><td colspan="7"></td>`;
-        //             fragment.appendChild(shiftRow);
-        //         });
-        //     }
+            if (shifts.length > 0) {
+                shifts.forEach(shift => {
+                    const shiftRow = document.createElement('tr');
+                    shiftRow.classList.add('shift-row');
+                    const message = `${shift.metric} --> ${shift.from.toFixed(2)} --> ${shift.to.toFixed(2)} at ${shift.timestamp}`;
+                    shiftRow.innerHTML = `<td colspan="7"></td><td><span class="shift-${shift.direction}">${message}</span></td><td colspan="7"></td>`;
+                    fragment.appendChild(shiftRow);
+                });
+            }
 
-        //     filteredChain.forEach((row, index) => {
-        //         if (!spotRowInserted && spotPrice > 0 && spotRowIndex !== -1 && index === spotRowIndex + 1) {
-        //             const spotRow = document.createElement('tr');
-        //             spotRow.classList.add('spot-row');
-        //             spotRow.innerHTML = `<td colspan="7"></td><td>Spot Price: ${spotPrice.toFixed(2)}</td><td colspan="7"></td>`;
-        //             fragment.appendChild(spotRow);
-        //             spotRowInserted = true;
-        //         }
+            filteredChain.forEach((row, index) => {
+                if (!spotRowInserted && spotPrice > 0 && spotRowIndex !== -1 && index === spotRowIndex + 1) {
+                    const spotRow = document.createElement('tr');
+                    spotRow.classList.add('spot-row');
+                    spotRow.innerHTML = `<td colspan="7"></td><td>Spot Price: ${spotPrice.toFixed(2)}</td><td colspan="7"></td>`;
+                    fragment.appendChild(spotRow);
+                    spotRowInserted = true;
+                }
 
-        //         const dataRow = document.createElement('tr');
-        //         if (spotPrice > 0 && row.strike < spotPrice) {
-        //             dataRow.classList.add('itm');
-        //         } else if (spotPrice > 0 && row.strike > spotPrice) {
-        //             dataRow.classList.add('otm');
-        //         }
+                const dataRow = document.createElement('tr');
+                if (spotPrice > 0 && row.strike < spotPrice) {
+                    dataRow.classList.add('itm');
+                } else if (spotPrice > 0 && row.strike > spotPrice) {
+                    dataRow.classList.add('otm');
+                }
 
-        //         function createTd(value, isChg = false, isMillion = false, maxValue = null, isPut = false, isOiOrOiChg = false, isStrike = false, isOiChange = false, type = null) {
-        //             const td = document.createElement('td');
-        //             if (isMillion && value !== null && value !== undefined && Number.isFinite(value)) {
-        //                 let percent;
-        //                 let className = '';
-        //                 if (isOiOrOiChg && value < 0) {
-        //                     percent = '0';
-        //                 } else {
-        //                     percent = maxValue.max > 0 ? (value / maxValue.max * 100).toFixed(1) : '0';
-        //                     if (value === maxValue.max) {
-        //                         className = isPut ? 'highest-value-put' : 'highest-value-call';
-        //                     } else if (value === maxValue.second && percent > 75) {
-        //                         className = 'second-highest';
-        //                     } else if (value === maxValue.third && percent > 75) {
-        //                         className = 'third-highest';
-        //                     }
-        //                 }
-        //                 td.textContent = `${percent}%\n${(value / 1000000).toFixed(1)}M`;
-        //                 if (className) {
-        //                     td.classList.add(className);
-        //                 }
-        //             } else {
-        //                 td.textContent = value !== null && value !== undefined ? Number.isFinite(value) ? value.toFixed(2) : value : '-';
-        //             }
-        //             if (isChg && Number.isFinite(value)) {
-        //                 if (value > 0) td.classList.add('positive');
-        //                 else if (value < 0) td.classList.add('negative');
-        //             }
-        //             if (isStrike || isOiChange) {
-        //                 td.style.cursor = 'pointer';
-        //                 td.dataset.strike = row.strike;
-        //                 if (isOiChange) {
-        //                     td.dataset.type = type;
-        //                     td.addEventListener('click', (event) => showOiChangePopup(row.strike, td, type));
-        //                 } else {
-        //                     td.addEventListener('click', (event) => showElasticEndsPopup(row.strike, td));
-        //                 }
-        //             }
-        //             return td;
-        //         }
+                function createTd(value, isChg = false, isMillion = false, maxValue = null, isPut = false, isOiOrOiChg = false, isStrike = false, isOiChange = false, type = null) {
+                    const td = document.createElement('td');
+                    if (isMillion && value !== null && value !== undefined && Number.isFinite(value)) {
+                        let percent;
+                        let className = '';
+                        if (isOiOrOiChg && value < 0) {
+                            percent = '0';
+                        } else {
+                            percent = maxValue.max > 0 ? (value / maxValue.max * 100).toFixed(1) : '0';
+                            if (value === maxValue.max) {
+                                className = isPut ? 'highest-value-put' : 'highest-value-call';
+                            } else if (value === maxValue.second && percent > 75) {
+                                className = 'second-highest';
+                            } else if (value === maxValue.third && percent > 75) {
+                                className = 'third-highest';
+                            }
+                        }
+                        td.textContent = `${percent}%\n${(value / 1000000).toFixed(1)}M`;
+                        if (className) {
+                            td.classList.add(className);
+                        }
+                    } else {
+                        td.textContent = value !== null && value !== undefined ? Number.isFinite(value) ? value.toFixed(2) : value : '-';
+                    }
+                    if (isChg && Number.isFinite(value)) {
+                        if (value > 0) td.classList.add('positive');
+                        else if (value < 0) td.classList.add('negative');
+                    }
+                    if (isStrike || isOiChange) {
+                        td.style.cursor = 'pointer';
+                        td.dataset.strike = row.strike;
+                        if (isOiChange) {
+                            td.dataset.type = type;
+                            td.addEventListener('click', (event) => showOiChangePopup(row.strike, td, type));
+                        } else {
+                            td.addEventListener('click', (event) => showElasticEndsPopup(row.strike, td));
+                        }
+                    }
+                    return td;
+                }
 
-        //         dataRow.appendChild(createTd(row.call_iv));
-        //         dataRow.appendChild(createTd(row.call_tv));
-        //         dataRow.appendChild(createTd(row.call_oi_chg, true, true, maxValues.callOiChg, false, true, false, true, 'call'));
-        //         dataRow.appendChild(createTd(row.call_oi, false, true, maxValues.callOi, false, true));
-        //         dataRow.appendChild(createTd(row.call_vol, false, true, maxValues.callVol));
-        //         dataRow.appendChild(createTd(row.call_chg_pct, true));
-        //         dataRow.appendChild(createTd(row.call_ltp));
-        //         dataRow.appendChild(createTd(row.strike, false, false, null, false, false, true));
-        //         dataRow.appendChild(createTd(row.put_ltp));
-        //         dataRow.appendChild(createTd(row.put_chg_pct, true));
-        //         dataRow.appendChild(createTd(row.put_vol, false, true, maxValues.putVol, true));
-        //         dataRow.appendChild(createTd(row.put_oi, false, true, maxValues.putOi, true, true));
-        //         dataRow.appendChild(createTd(row.put_oi_chg, true, true, maxValues.putOiChg, true, true, false, true, 'put'));
-        //         dataRow.appendChild(createTd(row.put_tv));
-        //         dataRow.appendChild(createTd(row.put_iv));
+                dataRow.appendChild(createTd(row.call_iv));
+                dataRow.appendChild(createTd(row.call_tv));
+                dataRow.appendChild(createTd(row.call_oi_chg, true, true, maxValues.callOiChg, false, true, false, true, 'call'));
+                dataRow.appendChild(createTd(row.call_oi, false, true, maxValues.callOi, false, true));
+                dataRow.appendChild(createTd(row.call_vol, false, true, maxValues.callVol));
+                dataRow.appendChild(createTd(row.call_chg_pct, true));
+                dataRow.appendChild(createTd(row.call_ltp));
+                dataRow.appendChild(createTd(row.strike, false, false, null, false, false, true));
+                dataRow.appendChild(createTd(row.put_ltp));
+                dataRow.appendChild(createTd(row.put_chg_pct, true));
+                dataRow.appendChild(createTd(row.put_vol, false, true, maxValues.putVol, true));
+                dataRow.appendChild(createTd(row.put_oi, false, true, maxValues.putOi, true, true));
+                dataRow.appendChild(createTd(row.put_oi_chg, true, true, maxValues.putOiChg, true, true, false, true, 'put'));
+                dataRow.appendChild(createTd(row.put_tv));
+                dataRow.appendChild(createTd(row.put_iv));
 
-        //         fragment.appendChild(dataRow);
-        //     });
+                fragment.appendChild(dataRow);
+            });
 
-        //     if (!spotRowInserted && spotPrice > 0) {
-        //         const spotRow = document.createElement('tr');
-        //         spotRow.classList.add('spot-row');
-        //         spotRow.innerHTML = `<td colspan="7"></td><td>Spot Price: ${spotPrice.toFixed(2)}</td><td colspan="7"></td>`;
-        //         fragment.appendChild(spotRow);
-        //     }
+            if (!spotRowInserted && spotPrice > 0) {
+                const spotRow = document.createElement('tr');
+                spotRow.classList.add('spot-row');
+                spotRow.innerHTML = `<td colspan="7"></td><td>Spot Price: ${spotPrice.toFixed(2)}</td><td colspan="7"></td>`;
+                fragment.appendChild(spotRow);
+            }
 
-        //     const totalRow = document.createElement('tr');
-        //     totalRow.classList.add('total-row');
-        //     totalRow.innerHTML = `
-        //         <td></td>
-        //         <td></td>
-        //         <td></td>
-        //         <td>${data.totals.total_call_oi !== undefined ? (data.totals.total_call_oi / 1000000).toFixed(1) + 'M' : '-'}</td>
-        //         <td>${data.totals.total_call_vol !== undefined ? (data.totals.total_call_vol / 1000000).toFixed(1) + 'M' : '-'}</td>
-        //         <td></td>
-        //         <td></td>
-        //         <td></td>
-        //         <td></td>
-        //         <td></td>
-        //         <td>${data.totals.total_put_vol !== undefined ? (data.totals.total_put_vol / 1000000).toFixed(1) + 'M' : '-'}</td>
-        //         <td>${data.totals.total_put_oi !== undefined ? (data.totals.total_put_oi / 1000000).toFixed(1) + 'M' : '-'}</td>
-        //         <td></td>
-        //         <td></td>
-        //         <td></td>
-        //     `;
-        //     const pcrRow = document.createElement('tr');
-        //     pcrRow.classList.add('pcr-row');
-        //     pcrRow.innerHTML = `
-        //         <td colspan="15">Total PCR OI: ${data.totals.total_pcr_oi !== undefined ? data.totals.total_pcr_oi.toFixed(2) : '-'} | Total PCR Vol: ${data.totals.total_pcr_vol !== undefined ? data.totals.total_pcr_vol.toFixed(2) : '-'}</td>
-        //     `;
-        //     tfoot.innerHTML = '';
-        //     tfoot.appendChild(totalRow);
-        //     tfoot.appendChild(pcrRow);
+            const totalRow = document.createElement('tr');
+            totalRow.classList.add('total-row');
+            totalRow.innerHTML = `
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>${data.totals.total_call_oi !== undefined ? (data.totals.total_call_oi / 1000000).toFixed(1) + 'M' : '-'}</td>
+                <td>${data.totals.total_call_vol !== undefined ? (data.totals.total_call_vol / 1000000).toFixed(1) + 'M' : '-'}</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>${data.totals.total_put_vol !== undefined ? (data.totals.total_put_vol / 1000000).toFixed(1) + 'M' : '-'}</td>
+                <td>${data.totals.total_put_oi !== undefined ? (data.totals.total_put_oi / 1000000).toFixed(1) + 'M' : '-'}</td>
+                <td></td>
+                <td></td>
+                <td></td>
+            `;
+            const pcrRow = document.createElement('tr');
+            pcrRow.classList.add('pcr-row');
+            pcrRow.innerHTML = `
+                <td colspan="15">Total PCR OI: ${data.totals.total_pcr_oi !== undefined ? data.totals.total_pcr_oi.toFixed(2) : '-'} | Total PCR Vol: ${data.totals.total_pcr_vol !== undefined ? data.totals.total_pcr_vol.toFixed(2) : '-'}</td>
+            `;
+            tfoot.innerHTML = '';
+            tfoot.appendChild(totalRow);
+            tfoot.appendChild(pcrRow);
 
-        //     tbody.innerHTML = '';
-        //     tbody.appendChild(fragment);
-        //     document.getElementById('chainTable').style.display = 'table';
+            tbody.innerHTML = '';
+            tbody.appendChild(fragment);
+            document.getElementById('chainTable').style.display = 'table';
 
-        //     calculateStrikeLevels(data.chain);
-        //     if (nineThirtyData) {
-        //         calculateNineThirtyStrikeLevels();
-        //     }
-        // }
+            calculateStrikeLevels(data.chain);
+            if (nineThirtyData) {
+                calculateNineThirtyStrikeLevels();
+            }
+        }
 
         // Calculate time to expiry in years with intraday precision
         function calculateT() {

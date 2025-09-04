@@ -31,7 +31,7 @@ class DhanClient:
         response = requests.post(url, headers=headers, json=payload)
         return self.handle_post_response(response)        
 
-    def fetch_option_chain(self, underlying_scrip, underlying_seg):
+    def fetch_option_chain(self, underlying_scrip, underlying_seg, expiry):
         url = f"{self.base_url}/optionchain"
         headers = {
             "access-token": self.access_token,
@@ -41,7 +41,7 @@ class DhanClient:
         payload = {
             "UnderlyingScrip": underlying_scrip,
             "UnderlyingSeg": underlying_seg,
-            "Expiry": "2025-08-14"
+            "Expiry": expiry
         }
         response = requests.post(url, headers=headers, json=payload)
         return self.handle_post_response(response)
