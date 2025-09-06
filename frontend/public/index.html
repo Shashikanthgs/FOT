@@ -6,74 +6,266 @@
     <title>Simple Option Chain</title>
     <link rel="stylesheet" href="styles.css">
     <style>
-        #oiChart {
-            display: block;
-            max-width: 800px;
-            margin: 20px auto;
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            font-family: Arial, sans-serif;
         }
-        .inline-popup {
-            background: white;
-            border: 1px solid #ccc;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 0px;
+            height: 100vh;
+            background-color: black;
+            padding: 0px;
             z-index: 1000;
-            padding: 10px;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
         }
-        .popup-content {
-            max-width: 600px;
+        .sidebar.open {
+            width: 250px;
+            padding: 20px;
+            background-color: #000000;
+            color: #000000;
         }
-        .popup-chart {
-            width: 500px;
-            height: 200px;
-            margin-top: 10px;
-            margin-bottom: 20px;
+        .nav-menu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            opacity: 0;
+            transform: translateX(-20px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
         }
-        .divider {
-            border-top: 1px solid #ccc;
-            margin: 10px 0;
+        .sidebar.open .nav-menu {
+            display: flex;
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .nav-menu li {
+            margin: 5px 0;
+        }
+        .nav-menu a {
+            text-decoration: none;
+            color: white;
+            font-size: 18px;
+        }
+        .hamburger {
+            display: block;
+            font-size: 70px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            position: absolute;
+            top: 0px;
+            left: 0px;
+            z-index: 1100;
+        }
+        .sidebar.open ~ main .hamburger {
+            display: none;
         }
         .dropdown-menu {
             display: none;
             position: absolute;
+            left: 100%;
+            top: 0;
             background: #fff;
             padding: 10px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
             z-index: 100;
+            min-width: 200px;
         }
-
         .dropdown-menu select {
-            width: 200px;
+            width: 100%;
             padding: 5px;
             margin: 5px 0;
+            font-size: 12px;
         }
-
         .dropdown:hover .dropdown-menu,
         .dropdown.active .dropdown-menu,
-        .dropdown-menu:hover {
-            display: block;
-        }
-
+        .dropdown-menu:hover,
         .dropdown-menu:focus-within {
             display: block;
+        }
+        main {
+            flex: 1;
+            margin-left: 0;
+            transition: margin-left 0.3s ease;
+            overflow-y: auto;
+            padding: 10px;
+            box-sizing: border-box;
+            max-height: calc(100vh - 46px);
+            position: relative;
+        }
+        .sidebar.open + main {
+            margin-left: 250px;
+        }
+        #chainTable {
+            width: 100%;
+            max-width: 100%;
+            border-collapse: collapse;
+            display: block;
+            overflow-x: auto;
+            white-space: nowrap;
+            font-size: 12px;
+            margin: 10px 0;
+            margin-top: 110px;
+        }
+        #chainTable th, #chainTable td {
+            padding: 5px;
+            border: 1px solid #ccc;
+            text-align: center;
+        }
+        #oiChart {
+            width: 100%;
+            max-width: 90vw;
+            height: 40vh;
+            margin: 10px auto;
+            display: block;
+        }
+        .inline-popup {
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            padding: 10px;
+            max-width: 90%;
+        }
+        .popup-content {
+            max-width: 90%;
+        }
+        .popup-chart {
+            width: 100%;
+            max-width: 80vw;
+            height: 20vh;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+        .divider {
+            border-top: 1px solid #ccc;
+            margin: 5px 0;
+        }
+        .disclaimer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #d3d3d3;
+            color: #721c24;
+            text-align: center;
+            padding: 20px;
+            z-index: 1000;
+            font-size: 40px;
+            box-sizing: border-box;
+        }
+        .rate-limit-message, .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 5px;
+            margin: 5px 0;
+            font-size: 12px;
+            text-align: center;
+        }
+        .dropdown-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            justify-content: flex-end;
+            align-items: center;
+        }
+        .dropdown-container select {
+            width: 250px;
+            padding: 10px;
+            font-size: 30px;
+            background-color: #182848;
+            color: #fff;
+            border: 2px solid #4b6cb7;
+            border-radius: 5px;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+        .dropdown-container select:focus {
+            outline: none;
+            border-color: #182848;
+            box-shadow: 0 0 5px rgba(24, 40, 72, 0.5);
+        }
+        .dropdown-container select:hover {
+            border-color: #182848;
+        }
+        .dropdown-container select option {
+            background-color: #fff;
+            color: #333;
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 200px;
+                left: 0;
+            }
+            .sidebar.open {
+                width: 200px;
+            }
+            .sidebar.open + main {
+                margin-left: 200px;
+            }
+            .nav-menu a {
+                font-size: 16px;
+            }
+            .dropdown-menu {
+                left: 0;
+                top: auto;
+                width: 180px;
+            }
+            .dropdown-menu select {
+                font-size: 10px;
+            }
+            #chainTable {
+                font-size: 10px;
+                margin-top: 90px;
+            }
+            #chainTable th, #chainTable td {
+                padding: 3px;
+            }
+            #oiChart {
+                height: 30vh;
+            }
+            .disclaimer {
+                font-size: 14px;
+                padding: 10px;
+            }
+            .hamburger {
+                top: 5px;
+                left: 5px;
+                font-size: 20px;
+            }
+            .dropdown-container {
+                flex-direction: column;
+                gap: 10px;
+                align-items: flex-end;
+            }
+            .dropdown-container select {
+                width: 220px;
+                font-size: 12px;
+                padding: 8px;
+                background-color: #182848;
+                color: #000000;
+            }
         }
     </style>
 </head>
 <body>
-    <nav class="nav-container">
-        <button class="hamburger" aria-label="Toggle menu">☰</button>
-        <ul class="nav-menu open">
-            <li><a href="#home">Home</a></li>
+    <nav class="sidebar">
+        <ul class="nav-menu">
+            <li><img src="./image/soccalculator.jpg" alt="Soccalculator Logo" style="width: 50px; height: 50px; margin-bottom: 10px;"></li>
+            <li><a href="#home">🏠 Home</a></li>
+            <li><a href="#live-option-chain" id="liveOptionChain">📈 Live Option Chain</a></li>
+            <li><a href="#about">ℹ️ About</a></li>
             <li class="dropdown">
-                <a href="#instruments">Instruments</a>
-                <ul class="dropdown-menu">
-                    <li>
-                        <select id="scrip" required>
-                            <option value="" disabled>Select a scrip</option>
-                        </select>
-                    </li>
-                </ul>
-            </li>
-            <li class="dropdown">
-                <a href="#settings">Settings</a>
+                <a href="#settings">⚙️ Settings</a>
                 <ul class="dropdown-menu">
                     <li>
                         <fieldset>
@@ -98,52 +290,52 @@
                     </li>
                 </ul>
             </li>
-            <li><a href="#about">About</a></li>
-            <li class="dropdown">
-                <a href="#Expiry dates">Expiry dates</a>
-                <ul class="dropdown-menu">
-                    <li>
-                        <select id="ExpDate" required>
-                            <option value="" disabled>Select a date</option>
-                        </select>
-                    </li>
-                </ul>
-            </li>
         </ul>
     </nav>
-
-    <div class="rate-limit-message" id="rateLimitMessage" style="display:none;">Rate limit reached. Retrying...</div>
-    <div class="error-message" id="errorMessage" style="display:none;">Error fetching data. Please try again or check the server.</div>
-    <table id="chainTable" style="display:none;">
-        <thead>
-            <tr>
-                <th class="call-column">IV</th>
-                <th class="call-column">TV</th>
-                <th class="call-column">OI Chg (M)</th>
-                <th class="call-column">OI (M)</th>
-                <th class="call-column">Volume (M)</th>
-                <th class="call-column">Chg (%)</th>
-                <th class="call-column">LTP</th>
-                <th id="dateTimeHeader"></th>
-                <th class="put-column">LTP</th>
-                <th class="put-column">Chg (%)</th>
-                <th class="put-column">Volume (M)</th>
-                <th class="put-column">OI (M)</th>
-                <th class="put-column">OI Chg (M)</th>
-                <th class="put-column">TV</th>
-                <th class="put-column">IV</th>
-            </tr>
-        </thead>
-        <tbody id="chainBody"></tbody>
-        <tfoot id="totalsFoot"></tfoot>
-    </table>
-    <div>
-        <canvas id="oiChart" width="800" height="400"></canvas>
-    </div>
+    <main>
+        <button class="hamburger" aria-label="Toggle menu">
+           <span>☰</span>
+        </button>
+        <div class="dropdown-container">
+            <select id="scrip" required>
+                <option value="" disabled>Select a scrip</option>
+            </select>
+            <select id="ExpDate" required>
+                <option value="" disabled>Select a date</option>
+            </select>
+        </div>
+        <div class="rate-limit-message" id="rateLimitMessage" style="display:none;">Rate limit reached. Retrying...</div>
+        <div class="error-message" id="errorMessage" style="display:none;">Error fetching data. Please try again or check the server.</div>
+        <table id="chainTable" style="display:none;">
+            <thead>
+                <tr>
+                    <th class="call-column">IV</th>
+                    <th class="call-column">TV</th>
+                    <th class="call-column">OI Chg (M)</th>
+                    <th class="call-column">OI (M)</th>
+                    <th class="call-column">Volume (M)</th>
+                    <th class="call-column">Chg (%)</th>
+                    <th class="call-column">LTP</th>
+                    <th id="dateTimeHeader"></th>
+                    <th class="put-column">LTP</th>
+                    <th class="put-column">Chg (%)</th>
+                    <th class="put-column">Volume (M)</th>
+                    <th class="put-column">OI (M)</th>
+                    <th class="put-column">OI Chg (M)</th>
+                    <th class="put-column">TV</th>
+                    <th class="put-column">IV</th>
+                </tr>
+            </thead>
+            <tbody id="chainBody"></tbody>
+            <tfoot id="totalsFoot"></tfoot>
+        </table>
+        <div>
+            <canvas id="oiChart"></canvas>
+        </div>
+    </main>
     <div class="disclaimer">
         <span class="disclaimer-text">We are not SEBI Registered Advisors. This website is purely for training and educational purposes. We shall not be responsible for your profit or loss. Please confirm with your investment advisor before Trading/Investing.</span>
     </div>
-
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script>
         // Global state
@@ -195,16 +387,12 @@
             oiChangeCE: [],
             oiChangePEMinusCE: []
         };
-        let strikeOiChangeData = new Map(); // Store OI change, VOI, and OI data per strike
-
-        // Elastic Ends state
+        let strikeOiChangeData = new Map();
         let hasSetNineThirty = false;
         let nineThirtyData = null;
         let strikeLevels = new Map();
         let nineThirtyStrikeLevels = new Map();
         const RISK_FREE_RATE = 0.067;
-
-        // Chart.js plugin for black background
         const blackBackgroundPlugin = {
             id: 'blackBackground',
             beforeDraw: (chart) => {
@@ -215,11 +403,12 @@
                 ctx.restore();
             }
         };
-
-        // Set zoom level
         function setZoomLevel(zoom) {
             currentZoomLevel = parseFloat(zoom);
-            document.body.style.zoom = currentZoomLevel;
+            document.querySelector('main').style.transform = `scale(${currentZoomLevel})`;
+            document.querySelector('main').style.transformOrigin = 'top left';
+            document.querySelector('main').style.width = `${100 / currentZoomLevel}%`;
+            document.querySelector('main').style.height = `${100 / currentZoomLevel}%`;
             document.getElementById('zoomValue').textContent = `${Math.round(currentZoomLevel * 100)}%`;
             if (currentPopup) {
                 const strike = currentPopup.dataset.strike;
@@ -234,8 +423,6 @@
                 }
             }
         }
-
-        // Format timestamp with AM/PM
         function formatTimestamp() {
             const now = new Date();
             const options = {
@@ -249,8 +436,6 @@
             };
             return now.toLocaleString('en-IN', options).replace(/(\d{2}:\d{2}:\d{2})\s(\w+)/, '$1 $2');
         }
-
-        // Generate time labels from 9:15 AM to 3:40 PM
         function generateTimeLabels() {
             const labels = [];
             let currentTime = new Date();
@@ -263,20 +448,14 @@
             }
             return labels;
         }
-
-        // Check if same trading day
         function isSameTradingDay(date1, date2) {
             return date1.toISOString().split('T')[0] === date2.toISOString().split('T')[0];
         }
-
-        // Check if trading day
         function isTradingDay(date) {
             const day = date.getDay();
             const dateStr = date.toISOString().split('T')[0];
             return day !== 0 && day !== 6 && !nseHolidays2025[dateStr];
         }
-
-        // Load strike OI change, VOI, and OI data from localStorage
         function loadStrikeOiChangeData() {
             const storedData = localStorage.getItem('strikeOiChangeData');
             if (storedData) {
@@ -307,8 +486,6 @@
                 }
             }
         }
-
-        // Save strike OI change, VOI, and OI data to localStorage
         function saveStrikeOiChangeData() {
             const dataToSave = {
                 date: new Date().toISOString().split('T')[0],
@@ -317,8 +494,6 @@
             localStorage.setItem('strikeOiChangeData', JSON.stringify(dataToSave));
             console.log('Saved strike OI change, VOI, and OI data to localStorage');
         }
-
-        // Initialize Main Chart
         function initializeChart() {
             if (typeof Chart === 'undefined') {
                 console.error('Chart.js is not loaded.');
@@ -333,7 +508,6 @@
             }
             const timeLabels = generateTimeLabels();
             console.log('Initializing main chart with time labels:', timeLabels);
-
             const initialData = Array(timeLabels.length).fill(null);
             Chart.register(blackBackgroundPlugin);
             oiChart = new Chart(ctx, {
@@ -384,13 +558,14 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        x: { title: { display: true, text: 'Time', color: 'white' }, ticks: { color: 'white' } },
+                        x: { title: { display: true, text: 'Time', color: 'white', font: { size: 12 } }, ticks: { color: 'white', font: { size: 10 } } },
                         y: {
-                            title: { display: true, text: 'OI Change (Millions)', color: 'white' },
+                            title: { display: true, text: 'OI Change (Millions)', color: 'white', font: { size: 12 } },
                             ticks: {
                                 callback: function(value) { return (value / 1000000).toFixed(2) + 'M'; },
                                 stepSize: 70000,
-                                color: 'white'
+                                color: 'white',
+                                font: { size: 10 }
                             },
                             suggestedMin: -700000,
                             suggestedMax: 700000,
@@ -403,6 +578,7 @@
                             position: 'top',
                             labels: {
                                 color: 'white',
+                                font: { size: 10 },
                                 generateLabels: function(chart) {
                                     const labels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
                                     labels.forEach(label => {
@@ -420,48 +596,37 @@
             });
             console.log('Main chart initialized:', oiChart);
         }
-
-        // Update Main Chart Data and Store VOI and OI
         function updateChart(data) {
             if (!oiChart) {
                 console.error('Main chart not initialized.');
                 return;
             }
-
             const timestamp = formatTimestamp().split(', ')[1];
             const timeLabels = generateTimeLabels();
             const index = timeLabels.findIndex(label => label === timestamp);
-
             if (index === -1) {
                 console.warn(`Timestamp ${timestamp} not found in chart labels.`);
                 return;
             }
-
             const totalCallOiChg = data.totals?.total_call_oi_chg || 0;
             const totalPutOiChg = data.totals?.total_put_oi_chg || 0;
             const oiChangePEMinusCE = totalPutOiChg - totalCallOiChg;
-
             console.log('Updating main chart with:', { timestamp, totalPutOiChg, totalCallOiChg, oiChangePEMinusCE, index });
-
             chartDataPoints.timestamps.push(timestamp);
             chartDataPoints.oiChangePE.push(totalPutOiChg);
             chartDataPoints.oiChangeCE.push(totalCallOiChg);
             chartDataPoints.oiChangePEMinusCE.push(oiChangePEMinusCE);
-
             if (chartDataPoints.timestamps.length > 100) {
                 chartDataPoints.timestamps.shift();
                 chartDataPoints.oiChangePE.shift();
                 chartDataPoints.oiChangeCE.shift();
                 chartDataPoints.oiChangePEMinusCE.shift();
             }
-
             oiChart.data.datasets[0].data[index] = totalPutOiChg;
             oiChart.data.datasets[1].data[index] = totalCallOiChg;
             oiChart.data.datasets[2].data[index] = oiChangePEMinusCE;
             oiChart.update();
             console.log('Main chart updated with new data at index:', index);
-
-            // Store OI change, VOI, and OI data per strike
             data.chain.forEach(row => {
                 const strike = row.strike;
                 if (!strikeOiChangeData.has(strike)) {
@@ -483,25 +648,18 @@
                 strikeData.callOiChg.push(row.call_oi_chg || 0);
                 strikeData.putOiChg.push(row.put_oi_chg || 0);
                 strikeData.peMinusCe.push((row.put_oi_chg || 0) - (row.call_oi_chg || 0));
-
-                // Calculate VOI
                 const callVoi = row.call_oi > 0 ? (row.call_vol / row.call_oi * 100) : 0;
                 const putVoi = row.put_oi > 0 ? (row.put_vol / row.put_oi * 100) : 0;
                 const voiCeMinusPe = callVoi - putVoi;
-
                 strikeData.callVoi.push(callVoi);
                 strikeData.putVoi.push(putVoi);
                 strikeData.voiCeMinusPe.push(voiCeMinusPe);
-
-                // Store OI
                 const callOi = row.call_oi || 0;
                 const putOi = row.put_oi || 0;
                 const oiPeMinusCe = putOi - callOi;
-
                 strikeData.callOi.push(callOi);
                 strikeData.putOi.push(putOi);
                 strikeData.oiPeMinusCe.push(oiPeMinusCe);
-
                 if (strikeData.timestamps.length > 100) {
                     strikeData.timestamps.shift();
                     strikeData.callOiChg.shift();
@@ -517,20 +675,16 @@
             });
             saveStrikeOiChangeData();
         }
-
-        // Show Elastic Ends Popup (for strike price clicks)
         function showElasticEndsPopup(strike, cellElement) {
             if (currentPopup) {
                 currentPopup.remove();
                 currentPopup = null;
             }
-
             const current = strikeLevels.get(strike) || { support: 0, resistance: 0 };
             let nineThirty = nineThirtyStrikeLevels.get(strike) || { support: 0, resistance: 0 };
             if (!hasSetNineThirty || !isSameTradingDay(new Date(), new Date(nineThirtyData?.date))) {
                 nineThirty = { support: 0, resistance: 0 };
             }
-
             const popup = document.createElement('div');
             popup.classList.add('inline-popup');
             popup.dataset.strike = strike;
@@ -553,7 +707,6 @@
                     <button>Close</button>
                 </div>
             `;
-
             const rect = cellElement.getBoundingClientRect();
             const table = document.getElementById('chainTable');
             const tableRect = table.getBoundingClientRect();
@@ -561,14 +714,11 @@
             popup.style.left = `${(rect.left - tableRect.left + rect.width) / currentZoomLevel}px`;
             popup.style.top = `${(rect.top - tableRect.top + rect.height) / currentZoomLevel}px`;
             table.appendChild(popup);
-
             currentPopup = popup;
-
             popup.querySelector('button').onclick = () => {
                 popup.remove();
                 currentPopup = null;
             };
-
             document.addEventListener('click', function handler(event) {
                 if (!popup.contains(event.target) && !cellElement.contains(event.target)) {
                     popup.remove();
@@ -577,14 +727,11 @@
                 }
             }, { once: true });
         }
-
-        // Show OI Change, VOI, and OI Chart Popup (for OI Chg clicks)
         function showOiChangePopup(strike, cellElement, type) {
             if (currentPopup) {
                 currentPopup.remove();
                 currentPopup = null;
             }
-
             const popup = document.createElement('div');
             popup.classList.add('inline-popup');
             popup.dataset.strike = strike;
@@ -599,7 +746,6 @@
                     <button>Close</button>
                 </div>
             `;
-
             const rect = cellElement.getBoundingClientRect();
             const table = document.getElementById('chainTable');
             const tableRect = table.getBoundingClientRect();
@@ -607,9 +753,7 @@
             popup.style.left = `${(rect.left - tableRect.left + rect.width) / currentZoomLevel}px`;
             popup.style.top = `${(rect.top - tableRect.top + rect.height) / currentZoomLevel}px`;
             table.appendChild(popup);
-
             currentPopup = popup;
-
             if (typeof Chart !== 'undefined') {
                 const timeLabels = generateTimeLabels();
                 const strikeData = strikeOiChangeData.get(strike) || {
@@ -639,7 +783,6 @@
                     put: Array(timeLabels.length).fill(null),
                     peMinusCe: Array(timeLabels.length).fill(null)
                 };
-
                 strikeData.timestamps.forEach((ts, i) => {
                     const index = timeLabels.findIndex(label => label === ts);
                     if (index !== -1) {
@@ -654,8 +797,6 @@
                         oiDataPoints.peMinusCe[index] = strikeData.oiPeMinusCe[i];
                     }
                 });
-
-                // OI Change Chart
                 const oiChangeCtx = popup.querySelector('#oiChangeChart')?.getContext('2d');
                 if (oiChangeCtx) {
                     new Chart(oiChangeCtx, {
@@ -707,13 +848,14 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             scales: {
-                                x: { title: { display: true, text: 'Time', color: 'white' }, ticks: { color: 'white' } },
+                                x: { title: { display: true, text: 'Time', color: 'white', font: { size: 10 } }, ticks: { color: 'white', font: { size: 8 } } },
                                 y: {
-                                    title: { display: true, text: 'OI Change (Millions)', color: 'white' },
+                                    title: { display: true, text: 'OI Change (Millions)', color: 'white', font: { size: 10 } },
                                     ticks: {
                                         callback: function(value) { return (value / 1000000).toFixed(2) + 'M'; },
                                         stepSize: 70000,
-                                        color: 'white'
+                                        color: 'white',
+                                        font: { size: 8 }
                                     },
                                     suggestedMin: -700000,
                                     suggestedMax: 700000,
@@ -726,6 +868,7 @@
                                     position: 'top',
                                     labels: {
                                         color: 'white',
+                                        font: { size: 8 },
                                         generateLabels: function(chart) {
                                             const labels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
                                             labels.forEach(label => {
@@ -743,8 +886,6 @@
                     });
                     console.log(`OI Change chart initialized for strike ${strike}`);
                 }
-
-                // VOI Chart
                 const voiCtx = popup.querySelector('#voiChart')?.getContext('2d');
                 if (voiCtx) {
                     new Chart(voiCtx, {
@@ -796,13 +937,14 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             scales: {
-                                x: { title: { display: true, text: 'Time', color: 'white' }, ticks: { color: 'white' } },
+                                x: { title: { display: true, text: 'Time', color: 'white', font: { size: 10 } }, ticks: { color: 'white', font: { size: 8 } } },
                                 y: {
-                                    title: { display: true, text: 'VOI (%)', color: 'white' },
+                                    title: { display: true, text: 'VOI (%)', color: 'white', font: { size: 10 } },
                                     ticks: {
                                         callback: function(value) { return value + '%'; },
                                         stepSize: 10,
-                                        color: 'white'
+                                        color: 'white',
+                                        font: { size: 8 }
                                     },
                                     suggestedMin: -50,
                                     suggestedMax: 50,
@@ -815,6 +957,7 @@
                                     position: 'top',
                                     labels: {
                                         color: 'white',
+                                        font: { size: 8 },
                                         generateLabels: function(chart) {
                                             const labels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
                                             labels.forEach(label => {
@@ -832,8 +975,6 @@
                     });
                     console.log(`VOI chart initialized for strike ${strike}`);
                 }
-
-                // OI Chart
                 const oiCtx = popup.querySelector('#oiChartPopup')?.getContext('2d');
                 if (oiCtx) {
                     new Chart(oiCtx, {
@@ -885,13 +1026,14 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             scales: {
-                                x: { title: { display: true, text: 'Time', color: 'white' }, ticks: { color: 'white' } },
+                                x: { title: { display: true, text: 'Time', color: 'white', font: { size: 10 } }, ticks: { color: 'white', font: { size: 8 } } },
                                 y: {
-                                    title: { display: true, text: 'OI (Millions)', color: 'white' },
+                                    title: { display: true, text: 'OI (Millions)', color: 'white', font: { size: 10 } },
                                     ticks: {
                                         callback: function(value) { return (value / 1000000).toFixed(2) + 'M'; },
                                         stepSize: 70000,
-                                        color: 'white'
+                                        color: 'white',
+                                        font: { size: 8 }
                                     },
                                     suggestedMin: -700000,
                                     suggestedMax: 700000,
@@ -904,6 +1046,7 @@
                                     position: 'top',
                                     labels: {
                                         color: 'white',
+                                        font: { size: 8 },
                                         generateLabels: function(chart) {
                                             const labels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
                                             labels.forEach(label => {
@@ -931,12 +1074,10 @@
                     </div>
                 `;
             }
-
             popup.querySelector('button').onclick = () => {
                 popup.remove();
                 currentPopup = null;
             };
-
             document.addEventListener('click', function handler(event) {
                 if (!popup.contains(event.target) && !cellElement.contains(event.target)) {
                     popup.remove();
@@ -945,8 +1086,6 @@
                 }
             }, { once: true });
         }
-
-        // Debounce utility
         function debounce(func, wait) {
             let timeout;
             return function executedFunction(...args) {
@@ -958,8 +1097,6 @@
                 timeout = setTimeout(later, wait);
             };
         }
-
-        // Throttle utility
         function throttle(func) {
             return function (...args) {
                 const now = Date.now();
@@ -971,21 +1108,15 @@
                 }
             };
         }
-
-        // Navigation menu toggle
         function toggleNavMenu() {
-            const navMenu = document.querySelector('.nav-menu');
-            navMenu.classList.toggle('open');
+            const sidebar = document.querySelector('.sidebar');
+            sidebar.classList.toggle('open');
         }
-
-        // Toggle dropdown on mobile
         function toggleDropdown(event) {
-            event.stopPropagation(); // Prevent event from bubbling up
+            event.stopPropagation();
             const dropdown = event.target.closest('.dropdown');
             if (dropdown) {
                 dropdown.classList.toggle('active');
-                
-                // Keep dropdown open while interacting with select
                 const select = dropdown.querySelector('select');
                 if (select) {
                     select.addEventListener('click', (e) => e.stopPropagation());
@@ -993,52 +1124,40 @@
                 }
             }
         }
-
-        // Add document click handler to close dropdowns
         document.addEventListener('click', (event) => {
-            if (!event.target.closest('.dropdown')) {
+            if (!event.target.closest('.dropdown') && !event.target.closest('.hamburger')) {
                 document.querySelectorAll('.dropdown').forEach(dropdown => {
                     if (!dropdown.contains(event.target)) {
                         dropdown.classList.remove('active');
                     }
                 });
+                document.querySelector('.sidebar').classList.remove('open');
             }
         });
-
-        // Update existing event listeners
         document.querySelectorAll('.nav-menu a, .dropdown').forEach(element => {
             element.addEventListener('click', (event) => {
-                if (window.innerWidth <= 768) {
-                    if (element.classList.contains('dropdown')) {
-                        toggleDropdown(event);
-                    } else if (!element.closest('select') && 
-                             !element.closest('input[type="radio"]') && 
-                             !element.closest('#zoomLevel')) {
-                        document.querySelector('.nav-menu').classList.remove('open');
-                    }
+                if (element.classList.contains('dropdown')) {
+                    toggleDropdown(event);
+                } else if (!element.closest('select') &&
+                         !element.closest('input[type="radio"]') &&
+                         !element.closest('#zoomLevel')) {
+                    document.querySelector('.sidebar').classList.remove('open');
                 }
             });
         });
-
-        // Show rate limit message
         function showRateLimitMessage() {
             const rateLimitDiv = document.getElementById('rateLimitMessage');
             if (rateLimitDiv) {
                 rateLimitDiv.style.display = 'block';
             }
         }
-
-        // Hide rate limit message
         function hideRateLimitMessage() {
             const rateLimitDiv = document.getElementById('rateLimitMessage');
             if (rateLimitDiv) {
                 rateLimitDiv.style.display = 'none';
             }
         }
-
-        let scripList = []; // Store scrips with scrip_id, segment, symbol
-
-        // Fetch scrips and populate dropdown
+        let scripList = [];
         async function fetchScrips() {
             try {
                 const response = await fetch(`${BASE_URL}/get_all_scrips`);
@@ -1058,30 +1177,37 @@
                 }
                 scripList = data;
                 renderScrips(data);
+                setDefaultNifty();
             } catch (error) {
                 showErrorMessage('Failed to fetch scrips');
                 console.error('Fetch error:', error);
             }
         }
-
-        // Render scrips in dropdown by symbol name
         function renderScrips(data) {
             const scripSelect = document.getElementById('scrip');
-            scripSelect.innerHTML = '<option value="" disabled selected>Select a scrip</option>';
-            
-            console.log('Dropdown data:', data); // Debug: show received data
+            scripSelect.innerHTML = '<option value="" disabled>Select a scrip</option>';
             data.forEach(scrip => {
-                // Fallback if symbol is missing
                 const symbol = scrip.symbol || 'Unknown';
                 const option = document.createElement('option');
                 option.value = scrip.scrip_id + '|' + scrip.segment;
                 option.text = symbol;
                 scripSelect.appendChild(option);
             });
-            scripSelect.disabled = false; // Ensure dropdown is enabled
+            scripSelect.disabled = false;
         }
-
-        // On dropdown change, extract scrip_id and segment, then fetch option chain
+        function setDefaultNifty() {
+            const scripSelect = document.getElementById('scrip');
+            const niftyOption = Array.from(scripSelect.options).find(option => option.text.toUpperCase() === 'NIFTY' || option.text.toUpperCase().includes('NIFTY'));
+            if (niftyOption) {
+                scripSelect.value = niftyOption.value;
+                const [scrip_id, segment] = niftyOption.value.split('|');
+                window.selectedScripId = scrip_id;
+                window.selectedSegment = segment;
+                fetchExpiries();
+            } else {
+                showErrorMessage('Nifty not found in scrip list.');
+            }
+        }
         document.getElementById('scrip').addEventListener('change', () => {
             stopFetching();
             previousChainData = null;
@@ -1094,86 +1220,65 @@
                 oiChart.data.datasets[2].data = Array(timeLabels.length).fill(null);
                 oiChart.update();
             }
-            // Extract selected scrip details
             const selected = document.getElementById('scrip').value;
             if (!selected) return;
             const [scrip_id, segment] = selected.split('|');
-            // Store for option chain fetch
             window.selectedScripId = scrip_id;
             window.selectedSegment = segment;
             fetchExpiries();
         });
-
-        // Update fetchExpiries and fetchChain to use selectedScripId and selectedSegment
         async function fetchExpiries() {
             const scrip_id = window.selectedScripId;
             const segment = window.selectedSegment;
-            
             if (!scrip_id || !segment) {
                 showErrorMessage('Please select a scrip.');
                 return;
             }
-
             try {
                 const response = await fetch(`${BASE_URL}/get_expiries`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         underlying_scrip: parseInt(scrip_id),
                         underlying_seg: segment
                     })
                 });
-                
                 const data = await response.json();
                 if (!data.data) {
                     throw new Error(data.error || 'Invalid response format');
                 }
-                
                 cachedExpiries = { scrip: scrip_id, seg: segment, data: data.data };
                 renderExpiries(data.data);
-                
             } catch (error) {
                 console.error('Fetch error:', error);
                 showErrorMessage(error.message);
             }
         }
-
-        // Render expiries
         function renderExpiries(expiries) {
             const ExpSelect = document.getElementById('ExpDate');
-            ExpSelect.innerHTML = '<option value="" disabled>Select a date</option>';            
+            ExpSelect.innerHTML = '<option value="" disabled>Select a date</option>';
             if (!expiries || !Array.isArray(expiries) || expiries.length === 0) {
                 showErrorMessage('No valid expiry dates available in response.');
                 return;
             }
-
-            console.log('Dropdown data:', expiries); // Debug: show received data
-        
-            // Populate dropdown with values from JSON
+            console.log('Dropdown data:', expiries);
             expiries.forEach(item => {
                 const option = document.createElement('option');
-                option.value = item; 
-                option.textContent = String(item); 
+                option.value = item;
+                option.textContent = String(item);
                 ExpSelect.appendChild(option);
             });
-            ExpSelect.disabled = false; // Ensure dropdown is enabled
-
-            // Extract selected scrip details
+            ExpSelect.disabled = false;
             const selected = document.getElementById('ExpDate').value;
             if (!selected) return;
             selectedExpiry = selected;
-            // selectedExpiry = expiries[0];
-            // console.log('Selected expiry:', selectedExpiry);
             startFetching();
         }
-
-        // Fetch option chain
         async function fetchChain() {
             const scrip_id = window.selectedScripId;
             const segment = window.selectedSegment;
             const strikeOption = document.querySelector('input[name="strikeOption"]:checked')?.value || '12';
             const tableOrder = document.querySelector('input[name="tableOrder"]:checked')?.value || 'descending';
-        
             if (!scrip_id || !segment || !selectedExpiry) {
                 showErrorMessage('Please select a scrip and ensure an expiry is available.');
                 return;
@@ -1185,10 +1290,8 @@
                 console.log('Skipping duplicate fetch with same parameters');
                 return;
             }
-
             lastRequestBody = { ...requestBody, strikeOption, tableOrder };
             console.log('Fetching chain with:', JSON.stringify(requestBody, null, 2), 'strikeOption:', strikeOption, 'tableOrder:', tableOrder);
-
             async function attemptFetch(attempt) {
                 try {
                     const response = await fetch(`${BASE_URL}/get_option_chain`, {
@@ -1205,12 +1308,10 @@
                         showErrorMessage(`Error fetching chain: ${data.error}`);
                         return;
                     }
-
                     if (!data.chain) {
                         showErrorMessage('Invalid option chain data received.');
                         return;
                     }
-
                     underlyingValue = data.spot_price || data.underlying_price || 0;
                     checkAndSetNineThirtyData(data);
                     renderTable(data, strikeOption, tableOrder);
@@ -1224,20 +1325,15 @@
                     console.error('Fetch error:', error);
                 }
             }
-
             await attemptFetch(1);
         }
-
-        // Render table
         function renderTable(data, strikeOption, tableOrder) {
             const tbody = document.getElementById('chainBody');
             const tfoot = document.getElementById('totalsFoot');
             const dateTimeHeader = document.getElementById('dateTimeHeader');
-
             const timestamp = formatTimestamp();
             const [date, time] = timestamp.split(', ');
             dateTimeHeader.innerHTML = `${date}<br>${time}`;
-
             let filteredChain = data.chain;
             if (strikeOption === '12') {
                 const spotPrice = underlyingValue;
@@ -1251,9 +1347,7 @@
                     filteredChain = data.chain.filter(row => selectedStrikes.includes(row.strike));
                 }
             }
-
             filteredChain.sort((a, b) => tableOrder === 'ascending' ? a.strike - b.strike : b.strike - a.strike);
-
             const maxValues = {
                 callOiChg: { max: 0, second: 0, third: 0, maxStrike: null },
                 callOi: { max: 0, second: 0, third: 0, maxStrike: null },
@@ -1262,7 +1356,6 @@
                 putOi: { max: 0, second: 0, third: 0, maxStrike: null },
                 putOiChg: { max: 0, second: 0, third: 0, maxStrike: null }
             };
-
             const getTopThree = (values, strikes) => {
                 const validValues = values
                     .map((v, i) => ({ value: v, strike: strikes[i] }))
@@ -1275,7 +1368,6 @@
                     maxStrike: validValues[0]?.strike || null
                 };
             };
-
             const strikes = filteredChain.map(row => row.strike);
             maxValues.callOiChg = getTopThree(filteredChain.map(row => row.call_oi_chg >= 0 ? row.call_oi_chg : 0), strikes);
             maxValues.callOi = getTopThree(filteredChain.map(row => row.call_oi >= 0 ? row.call_oi : 0), strikes);
@@ -1283,17 +1375,15 @@
             maxValues.putVol = getTopThree(filteredChain.map(row => Math.abs(row.put_vol || 0)), strikes);
             maxValues.putOi = getTopThree(filteredChain.map(row => row.put_oi >= 0 ? row.put_oi : 0), strikes);
             maxValues.putOiChg = getTopThree(filteredChain.map(row => row.put_oi_chg >= 0 ? row.put_oi_chg : 0), strikes);
-
             const shifts = [];
             const metrics = [
                 { key: 'callOi', name: 'Call OI', current: maxValues.callOi.maxStrike, previous: previousMaxStrikes.callOi },
-                { key: 'callOiChg', name: 'Call OI Chg', current: maxValues.callOiChg.maxStrike, previous: previousMaxStrikes.callOiChg },
+                { key: 'callOiChg', name: 'Call OI Chg', current: maxValues.callOiChg.maxStrike, current: maxValues.callOiChg.maxStrike, previous: previousMaxStrikes.callOiChg },
                 { key: 'callVol', name: 'Call Vol', current: maxValues.callVol.maxStrike, previous: previousMaxStrikes.callVol },
                 { key: 'putOi', name: 'Put OI', current: maxValues.putOi.maxStrike, previous: previousMaxStrikes.putOi },
                 { key: 'putOiChg', name: 'Put OI Chg', current: maxValues.putOiChg.maxStrike, previous: previousMaxStrikes.putOiChg },
                 { key: 'putVol', name: 'Put Vol', current: maxValues.putVol.maxStrike, previous: previousMaxStrikes.putVol }
             ];
-
             if (previousChainData) {
                 metrics.forEach(metric => {
                     if (metric.current !== null && metric.previous !== null && metric.current !== metric.previous) {
@@ -1309,7 +1399,6 @@
                     }
                 });
             }
-
             previousMaxStrikes = {
                 callOi: maxValues.callOi.maxStrike,
                 callOiChg: maxValues.callOiChg.maxStrike,
@@ -1318,7 +1407,6 @@
                 putOiChg: maxValues.putOiChg.maxStrike,
                 putVol: maxValues.putVol.maxStrike
             };
-
             const spotPrice = underlyingValue;
             let spotRowIndex = -1;
             if (spotPrice > 0) {
@@ -1327,10 +1415,8 @@
                     ? sortedStrikes.findIndex((strike, index) => index < sortedStrikes.length - 1 && strike <= spotPrice && sortedStrikes[index + 1] > spotPrice)
                     : sortedStrikes.findIndex((strike, index) => index < sortedStrikes.length - 1 && strike > spotPrice && sortedStrikes[index + 1] <= spotPrice);
             }
-
             const fragment = document.createDocumentFragment();
             let spotRowInserted = false;
-
             if (shifts.length > 0) {
                 shifts.forEach(shift => {
                     const shiftRow = document.createElement('tr');
@@ -1340,7 +1426,6 @@
                     fragment.appendChild(shiftRow);
                 });
             }
-
             filteredChain.forEach((row, index) => {
                 if (!spotRowInserted && spotPrice > 0 && spotRowIndex !== -1 && index === spotRowIndex + 1) {
                     const spotRow = document.createElement('tr');
@@ -1349,14 +1434,12 @@
                     fragment.appendChild(spotRow);
                     spotRowInserted = true;
                 }
-
                 const dataRow = document.createElement('tr');
                 if (spotPrice > 0 && row.strike < spotPrice) {
                     dataRow.classList.add('itm');
                 } else if (spotPrice > 0 && row.strike > spotPrice) {
                     dataRow.classList.add('otm');
                 }
-
                 function createTd(value, isChg = false, isMillion = false, maxValue = null, isPut = false, isOiOrOiChg = false, isStrike = false, isOiChange = false, type = null) {
                     const td = document.createElement('td');
                     if (isMillion && value !== null && value !== undefined && Number.isFinite(value)) {
@@ -1397,7 +1480,6 @@
                     }
                     return td;
                 }
-
                 dataRow.appendChild(createTd(row.call_iv));
                 dataRow.appendChild(createTd(row.call_tv));
                 dataRow.appendChild(createTd(row.call_oi_chg, true, true, maxValues.callOiChg, false, true, false, true, 'call'));
@@ -1413,17 +1495,14 @@
                 dataRow.appendChild(createTd(row.put_oi_chg, true, true, maxValues.putOiChg, true, true, false, true, 'put'));
                 dataRow.appendChild(createTd(row.put_tv));
                 dataRow.appendChild(createTd(row.put_iv));
-
                 fragment.appendChild(dataRow);
             });
-
             if (!spotRowInserted && spotPrice > 0) {
                 const spotRow = document.createElement('tr');
                 spotRow.classList.add('spot-row');
                 spotRow.innerHTML = `<td colspan="7"></td><td>Spot Price: ${spotPrice.toFixed(2)}</td><td colspan="7"></td>`;
                 fragment.appendChild(spotRow);
             }
-
             const totalRow = document.createElement('tr');
             totalRow.classList.add('total-row');
             totalRow.innerHTML = `
@@ -1451,48 +1530,30 @@
             tfoot.innerHTML = '';
             tfoot.appendChild(totalRow);
             tfoot.appendChild(pcrRow);
-
             tbody.innerHTML = '';
             tbody.appendChild(fragment);
             document.getElementById('chainTable').style.display = 'table';
-
             calculateStrikeLevels(data.chain);
             if (nineThirtyData) {
                 calculateNineThirtyStrikeLevels();
             }
         }
-
-        // Calculate time to expiry in years with intraday precision
         function calculateT() {
             const now = new Date();
             const expiryDate = new Date(`${selectedExpiry}T15:30:00+05:30`);
             const diffMs = expiryDate - now;
-
             if (diffMs <= 0) {
                 return 0;
             }
-
-            const diffHours = diffMs / (1000 * 60 * 60);
-            const isSameDay = now.toISOString().split('T')[0] === selectedExpiry;
-
-            if (isSameDay && diffHours <= 1) {
-                const diffMinutes = diffMs / (1000 * 60);
-                return Math.max(0, diffMinutes / (365 * 24 * 60));
-            } else if (isSameDay && diffHours <= 24) {
-                return Math.max(0, diffHours / (365 * 24));
-            } else {
-                const diffDays = diffMs / (1000 * 60 * 60 * 24);
-                return Math.max(0, diffDays / 365);
-            }
+            const diffDaysFractional = diffMs / (1000 * 60 * 60 * 24);
+            const days = Math.ceil(diffDaysFractional);
+            return days / 365;
         }
-
-        // Calculate reversal (support/resistance)
         function calculateReversal(row, useNineThirty = false) {
             let S = underlyingValue;
             let P = row.put_ltp;
             let C = row.call_ltp;
             const K = row.strike;
-
             if (useNineThirty && nineThirtyData) {
                 S = nineThirtyData.s;
                 const strikeData = nineThirtyData.strikes.get(K);
@@ -1503,26 +1564,20 @@
                     return 0;
                 }
             }
-
             const t = calculateT();
             const exp_term = Math.exp(-RISK_FREE_RATE * t);
             const one_minus_exp = 1 - exp_term;
             const reversal = S - K + P - C + K * one_minus_exp;
             return K + reversal;
         }
-
-        // Calculate strike levels
         function calculateStrikeLevels(chain) {
             const sortedChain = [...chain].sort((a, b) => a.strike - b.strike);
             if (sortedChain.length < 1) return;
-
             strikeLevels.clear();
             const step = sortedChain.length > 1 ? sortedChain[1].strike - sortedChain[0].strike : 50;
-
             const lowestRow = sortedChain[0];
             const hypotheticalLow = { ...lowestRow, strike: lowestRow.strike - step };
             const lowSupport = calculateReversal(hypotheticalLow);
-
             for (let i = 0; i < sortedChain.length; i++) {
                 const row = sortedChain[i];
                 const support = i === 0 ? lowSupport : calculateReversal(row);
@@ -1536,26 +1591,20 @@
                 strikeLevels.set(row.strike, { support: support.toFixed(4), resistance: resistance.toFixed(4) });
             }
         }
-
-        // Calculate nine thirty strike levels
         function calculateNineThirtyStrikeLevels() {
             if (!nineThirtyData || !nineThirtyData.strikes.size) return;
-
             const strikesArray = Array.from(nineThirtyData.strikes.keys()).sort((a, b) => a - b);
             const chain = strikesArray.map(strike => ({
                 strike,
                 put_ltp: nineThirtyData.strikes.get(strike).p,
                 call_ltp: nineThirtyData.strikes.get(strike).c
             }));
-
             nineThirtyStrikeLevels.clear();
             const step = strikesArray.length > 1 ? strikesArray[1] - strikesArray[0] : 50;
-
             const lowestStrike = strikesArray[0];
             const lowestData = nineThirtyData.strikes.get(lowestStrike);
             const hypotheticalLow = { strike: lowestStrike - step, put_ltp: lowestData.p, call_ltp: lowestData.c };
             const lowSupport = calculateReversal(hypotheticalLow, true);
-
             for (let i = 0; i < strikesArray.length; i++) {
                 const row = chain[i];
                 const support = i === 0 ? lowSupport : calculateReversal(row, true);
@@ -1569,8 +1618,6 @@
                 nineThirtyStrikeLevels.set(row.strike, { support: support.toFixed(4), resistance: resistance.toFixed(4) });
             }
         }
-
-        // Load nine thirty data from localStorage
         function loadNineThirtyData() {
             const storedData = localStorage.getItem('nineThirtyData');
             if (storedData) {
@@ -1593,8 +1640,6 @@
                 }
             }
         }
-
-        // Check and set nine thirty data
         function checkAndSetNineThirtyData(data) {
             const now = new Date();
             const isTrading = isTradingDay(now);
@@ -1605,11 +1650,8 @@
                 }
             }
         }
-
-        // Set nine thirty data
         function setNineThirtyData(data) {
             if (nineThirtyData || !data.chain.length) return;
-
             nineThirtyData = {
                 s: data.underlying_price,
                 strikes: new Map(),
@@ -1622,8 +1664,6 @@
             calculateNineThirtyStrikeLevels();
             hasSetNineThirty = true;
         }
-
-        // Save nine thirty data to localStorage
         function saveNineThirtyData() {
             if (nineThirtyData) {
                 const dataToSave = {
@@ -1635,13 +1675,10 @@
                 localStorage.setItem('nineThirtyData', JSON.stringify(dataToSave));
             }
         }
-
-        // Start and stop fetching
         function startFetching() {
             debouncedFetchChain();
-            fetchInterval = setInterval(debouncedFetchChain, 1000);
+            fetchInterval = setInterval(debouncedFetchChain, 10000);
         }
-
         function stopFetching() {
             if (fetchInterval) {
                 clearInterval(fetchInterval);
@@ -1649,11 +1686,7 @@
             }
             hideRateLimitMessage();
         }
-
-        // Debounced and throttled fetchChain
-        const debouncedFetchChain = debounce(throttle(fetchChain), 500);
-
-        // Error handling
+        const debouncedFetchChain = debounce(throttle(fetchChain), 3000);
         function showErrorMessage(message) {
             isError = true;
             const errorDiv = document.getElementById('errorMessage');
@@ -1664,7 +1697,6 @@
             console.log('Error displayed:', message);
             stopFetching();
         }
-
         function removeErrorMessage() {
             isError = false;
             const errorDiv = document.getElementById('errorMessage');
@@ -1672,35 +1704,16 @@
                 errorDiv.style.display = 'none';
             }
         }
-
         document.querySelectorAll('input[name="strikeOption"], input[name="tableOrder"]').forEach(input => {
             input.addEventListener('change', debouncedFetchChain);
         });
         document.querySelector('.hamburger').addEventListener('click', toggleNavMenu);
-        document.querySelectorAll('.nav-menu a, .dropdown').forEach(element => {
-            element.addEventListener('click', (event) => {
-                if (window.innerWidth <= 768) {
-                    if (element.classList.contains('dropdown')) {
-                        toggleDropdown(event);
-                    } else if (!element.closest('select') && 
-                             !element.closest('input[type="radio"]') && 
-                             !element.closest('#zoomLevel')) {
-                        document.querySelector('.nav-menu').classList.remove('open');
-                    }
-                }
-            });
-        });
-
-        // Initialize chart after DOM is loaded
         document.addEventListener('DOMContentLoaded', () => {
-            // Instead, just try to initializeChart if Chart is available
-            // if (typeof Chart !== 'undefined') {
-            //     initializeChart();
-            // }
-            // loadNineThirtyData();
-            // loadStrikeOiChangeData();
+            //initializeChart();
+            loadNineThirtyData();
+            loadStrikeOiChangeData();
             fetchScrips();
         });
     </script>
 </body>
-</html>
+</
