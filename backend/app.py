@@ -6,9 +6,11 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import traceback
 from datetime import datetime
-from cachetools import TTLCache
+from cachetools import TTLCache  # You had this, but we'll use Redis instead
 import pandas as pd
 from dhan_client import DhanClient
+import redis  # NEW: Import Redis
+import json  # NEW: For serializing/deserializing data
 
 app = Flask(__name__)
 CORS(app, resources={
@@ -38,11 +40,18 @@ ACCESS_TOKEN = os.getenv('ACCESS_TOKEN')
 if not CLIENT_ID or not ACCESS_TOKEN:
     raise ValueError("CLIENT_ID or ACCESS_TOKEN not found in .env file")
 
-# Load environment variables from .env file
+# NEW: Redis Connection (update host/port if not local)
+redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
+# Test connection (optional, can remove)
+try:
+    redis_client.ping()
+except redis.ConnectionError:
+    print("Warning: Redis connection failed. Caching disabled.")
+
+# Dhan Client
 dhan_client = DhanClient(client_id=CLIENT_ID, 
                          access_token=ACCESS_TOKEN,
                          base_url="https://api.dhan.co/v2")
-
 
 def process_option_chain(chain_data):
     # Process the option chain data as needed
@@ -144,6 +153,15 @@ def get_expiries():
         if not underlying_scrip or not underlying_seg:
             return jsonify({"error": "Missing underlying_scrip or underlying_seg"}), 400
 
+        # NEW: Generate cache key
+        cache_key = f"expiries:{underlying_scrip}:{underlying_seg}"
+        
+        # NEW: Check Redis cache
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            print(f"Cache hit for {cache_key}")
+            return jsonify(json.loads(cached_data))  # Return cached JSON
+
         print(f'Fetching expiries for scrip: {underlying_scrip}, segment: {underlying_seg}')
         expiry_list = dhan_client.fetch_expiry_list(
             underlying_scrip=underlying_scrip,
@@ -152,7 +170,11 @@ def get_expiries():
         
         if expiry_list is None:
             return jsonify({'error': 'Failed to fetch expiry list data'}), 500
-            
+        
+        # NEW: Cache the response (serialize to JSON, set TTL=300s)
+        json_data = json.dumps(expiry_list)
+        redis_client.set(cache_key, json_data, ex=300)  # 5 min expiry
+        
         return jsonify(expiry_list)
         
     except Exception as e:
@@ -169,6 +191,15 @@ def get_option_chain():
     if not underlying_scrip or not underlying_seg or not expiry:
         return jsonify({"error": "Missing underlying_scrip or underlying_seg or expiry"}), 400
 
+    # NEW: Generate cache key
+    cache_key = f"option_chain:{underlying_scrip}:{underlying_seg}:{expiry}"
+    
+    # NEW: Check Redis cache
+    cached_data = redis_client.get(cache_key)
+    if cached_data:
+        print(f"Cache hit for {cache_key}")
+        return jsonify(json.loads(cached_data))
+
     option_chain = dhan_client.fetch_option_chain(
         underlying_scrip=underlying_scrip,
         underlying_seg=underlying_seg,
@@ -178,20 +209,37 @@ def get_option_chain():
     if option_chain is None:
         return jsonify({'error': 'Failed to fetch option chain data'}), 500
 
-    # Process and return the option chain data
-    processed_chain = process_option_chain(chain_data = option_chain.get('data', {}))
+    # Process the data (returns jsonify object)
+    processed_response = process_option_chain(chain_data=option_chain.get('data', {}))
     
-    return processed_chain
-
+    # NEW: Extract JSON from response and cache it (TTL=60s for live data)
+    json_data = json.dumps(processed_response.get_json())  # Serialize the dict
+    redis_client.set(cache_key, json_data, ex=60)
+    
+    return processed_response
 
 @app.route('/get_all_scrips', methods=['GET'])
 def get_all_scrips():
+    # NEW: Generate cache key (static, no params)
+    cache_key = "all_scrips"
+    
+    # NEW: Check Redis cache
+    cached_data = redis_client.get(cache_key)
+    if cached_data:
+        print(f"Cache hit for {cache_key}")
+        return jsonify(json.loads(cached_data))
 
     if dhan_client.instruments_df.empty:
         return jsonify({"error": "Instrument data not loaded"}), 500
 
     filtered_df = dhan_client.instruments_df.replace({np.nan: None})
-    return jsonify(filtered_df.to_dict('records'))
+    scrips_data = filtered_df.to_dict('records')
+    
+    # NEW: Cache the response (TTL=3600s)
+    json_data = json.dumps(scrips_data)
+    redis_client.set(cache_key, json_data, ex=3600)
+    
+    return jsonify(scrips_data)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
