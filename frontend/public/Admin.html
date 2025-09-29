@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Approval</title>
+    <link rel="stylesheet" href="Login_style.css">
+    <style>
+        .admin-container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 5px;
+        }
+        .admin-container h2 {
+            text-align: center;
+        }
+        .user-list {
+            list-style: none;
+            padding: 0;
+        }
+        .user-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .status-pending { color: orange; }
+        .status-approved { color: green; }
+        .status-rejected { color: red; }
+        .status-unknown { color: gray; }
+        .approve-btn, .reject-btn, .delete-btn, .clear-data-btn {
+            background: #00bcd4;
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .reject-btn {
+            background: #ff4444;
+        }
+        .delete-btn {
+            background: #888;
+        }
+        .clear-data-btn {
+            background: #666;
+        }
+        .approve-btn:hover {
+            background: #0097a7;
+        }
+        .reject-btn:hover {
+            background: #cc0000;
+        }
+        .delete-btn:hover {
+            background: #666;
+        }
+        .clear-data-btn:hover {
+            background: #555;
+        }
+        .clear-data-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .expiry-input {
+            margin-left: 10px;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="content-wrapper">
+        <div class="admin-container">
+            <h2>User Management</h2>
+            <ul class="user-list" id="userList"></ul>
+            <div class="clear-data-container">
+                <button class="clear-data-btn">Clear All User Data</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        function loadUsers() {
+            let users = [];
+            try {
+                const storedUsers = localStorage.getItem("users");
+                users = storedUsers ? JSON.parse(storedUsers) : [];
+                if (!Array.isArray(users)) {
+                    console.error("Invalid users data: not an array");
+                    users = [];
+                    localStorage.setItem("users", JSON.stringify(users));
+                }
+                // Validate each user object
+                users = users.filter(user => {
+                    if (!user.email || !user.id || !user.status) {
+                        console.error("Invalid user object:", user);
+                        return false;
+                    }
+                    return true;
+                });
+                localStorage.setItem("users", JSON.stringify(users));
+            } catch (error) {
+                console.error("Error parsing users from localStorage:", error);
+                users = [];
+                localStorage.setItem("users", JSON.stringify(users));
+            }
+
+            const userList = document.getElementById("userList");
+            userList.innerHTML = "";
+            if (users.length === 0) {
+                userList.innerHTML = "<li>No users found.</li>";
+                return;
+            }
+
+            users.forEach(user => {
+                const li = document.createElement("li");
+                const status = user.status || "unknown";
+                const expiry = user.expiryDate ? new Date(user.expiryDate).toLocaleDateString() : "None";
+                li.innerHTML = `
+                    <span>${user.email} (<span class="status-${status}">${status}</span>, Expiry: ${expiry})</span>
+                    <div>
+                        ${status === "pending" ? `
+                            <input type="date" class="expiry-input" data-id="${user.id}" min="${new Date().toISOString().split('T')[0]}" placeholder="Set expiry date">
+                            <button class="approve-btn" data-id="${user.id}">Approve</button>
+                            <button class="reject-btn" data-id="${user.id}">Reject</button>
+                        ` : ""}
+                        <button class="delete-btn" data-id="${user.id}">Delete</button>
+                    </div>
+                `;
+                userList.appendChild(li);
+            });
+        }
+
+        document.addEventListener("click", (e) => {
+            const userId = e.target.dataset.id;
+            let users = JSON.parse(localStorage.getItem("users") || "[]");
+            let pendingUsers = JSON.parse(localStorage.getItem("pendingUsers") || "[]");
+
+            if (e.target.classList.contains("approve-btn")) {
+                const expiryInput = document.querySelector(`.expiry-input[data-id="${userId}"]`);
+                const expiryDate = expiryInput.value ? new Date(expiryInput.value).toISOString() : null;
+                users = users.map(user => {
+                    if (user.id === userId) {
+                        return { ...user, status: "approved", expiryDate };
+                    }
+                    return user;
+                });
+                pendingUsers = pendingUsers.filter(p => p.id !== userId);
+                localStorage.setItem("users", JSON.stringify(users));
+                localStorage.setItem("pendingUsers", JSON.stringify(pendingUsers));
+                alert("User approved!");
+                loadUsers();
+            } else if (e.target.classList.contains("reject-btn")) {
+                users = users.map(user => {
+                    if (user.id === userId) {
+                        return { ...user, status: "rejected", expiryDate: null };
+                    }
+                    return user;
+                });
+                pendingUsers = pendingUsers.filter(p => p.id !== userId);
+                localStorage.setItem("users", JSON.stringify(users));
+                localStorage.setItem("pendingUsers", JSON.stringify(pendingUsers));
+                alert("User rejected!");
+                loadUsers();
+            } else if (e.target.classList.contains("delete-btn")) {
+                if (confirm(`Are you sure you want to delete user with ID ${userId}?`)) {
+                    users = users.filter(user => user.id !== userId);
+                    pendingUsers = pendingUsers.filter(p => p.id !== userId);
+                    localStorage.setItem("users", JSON.stringify(users));
+                    localStorage.setItem("pendingUsers", JSON.stringify(pendingUsers));
+                    alert("User deleted!");
+                    loadUsers();
+                }
+            } else if (e.target.classList.contains("clear-data-btn")) {
+                if (confirm("Are you sure you want to clear all user data? This cannot be undone.")) {
+                    localStorage.removeItem("users");
+                    localStorage.removeItem("pendingUsers");
+                    localStorage.removeItem("currentUser");
+                    alert("All user data cleared!");
+                    loadUsers();
+                }
+            }
+        });
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadUsers();
+        });
+    </script>
+</body>
+</html>

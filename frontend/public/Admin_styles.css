@@ -1,0 +1,18 @@
+/* styles.css */
+.menu-link.logout-btn {
+    color: #3f3939;
+    text-decoration: none;
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+.menu-link.logout-btn:hover {
+    color: #19e8ff;
+}
+
+/* Zoom fix for mobile */
+@media (max-width: 760px) {
+    .content-wrapper {
+        zoom: 150%;
+    }
+}
