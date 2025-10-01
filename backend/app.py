@@ -4,15 +4,25 @@ import requests
 import os
 from flask_cors import CORS
 from dotenv import load_dotenv
-import traceback
-from datetime import datetime
-from cachetools import TTLCache  # You had this, but we'll use Redis instead
 import pandas as pd
 from dhan_client import DhanClient
-import redis  # NEW: Import Redis
-import json  # NEW: For serializing/deserializing data
+import redis
+import json
+import signal
+import sys
+from dhanhq import marketfeed
+import asyncio
+import time
+import logging
+from concurrent.futures import ThreadPoolExecutor
+import threading
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
 CORS(app, resources={
     r"/*": {
         "origins": "*",  # Allow all origins for development
@@ -22,36 +32,6 @@ CORS(app, resources={
         "supports_credentials": True
     }
 })
-
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    return response
-
-# Load environment variables from .env file
-load_dotenv()
-
-# Get credentials from .env
-CLIENT_ID = os.getenv('CLIENT_ID')
-ACCESS_TOKEN = os.getenv('ACCESS_TOKEN')
-
-if not CLIENT_ID or not ACCESS_TOKEN:
-    raise ValueError("CLIENT_ID or ACCESS_TOKEN not found in .env file")
-
-# NEW: Redis Connection (update host/port if not local)
-redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
-# Test connection (optional, can remove)
-try:
-    redis_client.ping()
-except redis.ConnectionError:
-    print("Warning: Redis connection failed. Caching disabled.")
-
-# Dhan Client
-dhan_client = DhanClient(client_id=CLIENT_ID, 
-                         access_token=ACCESS_TOKEN,
-                         base_url="https://api.dhan.co/v2")
 
 def process_option_chain(chain_data):
     # Process the option chain data as needed
@@ -143,103 +123,151 @@ def process_option_chain(chain_data):
         }
     })
 
-@app.route('/get_expiries', methods=['POST'])
-def get_expiries():
-    try:
-        data = request.get_json()
-        underlying_scrip = data.get('underlying_scrip')
-        underlying_seg = data.get('underlying_seg')
-        
-        if not underlying_scrip or not underlying_seg:
-            return jsonify({"error": "Missing underlying_scrip or underlying_seg"}), 400
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
-        # NEW: Generate cache key
-        cache_key = f"expiries:{underlying_scrip}:{underlying_seg}"
-        
-        # NEW: Check Redis cache
-        cached_data = redis_client.get(cache_key)
-        if cached_data:
-            print(f"Cache hit for {cache_key}")
-            return jsonify(json.loads(cached_data))  # Return cached JSON
+# Redis Connection (update host/port if not local)
+redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
 
-        print(f'Fetching expiries for scrip: {underlying_scrip}, segment: {underlying_seg}')
-        expiry_list = dhan_client.fetch_expiry_list(
-            underlying_scrip=underlying_scrip,
-            underlying_seg=underlying_seg
-        )
-        
-        if expiry_list is None:
-            return jsonify({'error': 'Failed to fetch expiry list data'}), 500
-        
-        # NEW: Cache the response (serialize to JSON, set TTL=300s)
-        json_data = json.dumps(expiry_list)
-        redis_client.set(cache_key, json_data, ex=300)  # 5 min expiry
-        
-        return jsonify(expiry_list)
-        
-    except Exception as e:
-        print(f"Error in get_expiries: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/get_option_chain', methods=['POST'])
+@app.route('/get_option_chain', methods=['GET', 'POST'])
 def get_option_chain():
     data = request.get_json()
     underlying_scrip = data.get('underlying_scrip')
     underlying_seg = data.get('underlying_seg')
-    expiry = data.get('expiry')
+    # expiry = data.get('expiry')
 
-    if not underlying_scrip or not underlying_seg or not expiry:
-        return jsonify({"error": "Missing underlying_scrip or underlying_seg or expiry"}), 400
+    # if not underlying_scrip or not underlying_seg or not expiry:
+    #     return jsonify({"error": "Missing underlying_scrip or underlying_seg or expiry"}), 400
 
     # NEW: Generate cache key
-    cache_key = f"option_chain:{underlying_scrip}:{underlying_seg}:{expiry}"
+    cache_key = f"option_chain:{underlying_scrip}_{underlying_seg}"
     
     # NEW: Check Redis cache
     cached_data = redis_client.get(cache_key)
     if cached_data:
         print(f"Cache hit for {cache_key}")
-        return jsonify(json.loads(cached_data))
 
-    option_chain = dhan_client.fetch_option_chain(
-        underlying_scrip=underlying_scrip,
-        underlying_seg=underlying_seg,
-        expiry=expiry
-    )
+    else:
+        print(f"Cache miss for {cache_key}. Data not found in cache.")
 
-    if option_chain is None:
-        return jsonify({'error': 'Failed to fetch option chain data'}), 500
-
-    # Process the data (returns jsonify object)
-    processed_response = process_option_chain(chain_data=option_chain.get('data', {}))
-    
-    # NEW: Extract JSON from response and cache it (TTL=60s for live data)
-    json_data = json.dumps(processed_response.get_json())  # Serialize the dict
-    redis_client.set(cache_key, json_data, ex=60)
+    processed_response = process_option_chain(json.loads(cached_data))
     
     return processed_response
 
+
 @app.route('/get_all_scrips', methods=['GET'])
 def get_all_scrips():
-    # NEW: Generate cache key (static, no params)
-    cache_key = "all_scrips"
-    
-    # NEW: Check Redis cache
-    cached_data = redis_client.get(cache_key)
-    if cached_data:
-        print(f"Cache hit for {cache_key}")
-        return jsonify(json.loads(cached_data))
 
-    if dhan_client.instruments_df.empty:
-        return jsonify({"error": "Instrument data not loaded"}), 500
+    csv_path = os.path.join(os.path.dirname(__file__), 'Dependencies', 'my_instruments.csv')
+    try:
+        instruments_df = pd.read_csv(csv_path)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"The file '{csv_path}' was not found. Please check the path and ensure the file exists.")
 
-    filtered_df = dhan_client.instruments_df.replace({np.nan: None})
+    filtered_df = instruments_df.replace({np.nan: None})
     scrips_data = filtered_df.to_dict('records')
-    
-    # NEW: Cache the response (TTL=3600s)
-    json_data = json.dumps(scrips_data)
-    redis_client.set(cache_key, json_data, ex=3600)
-    
+        
     return jsonify(scrips_data)
 
+# Function to fetch and cache option chain data
+def fetch_and_cache_option_chain(dhan_client, redis_client, scrip_id, segment):
+    while True:
+        try:
+
+            expiry_data = dhan_client.fetch_expiry_list(underlying_scrip=scrip_id,
+                                            underlying_seg=segment)
+            expiry_list = expiry_data.get('data', {})
+            expiry_date = expiry_list[0]
+            option_chain = dhan_client.fetch_option_chain(underlying_scrip=scrip_id,
+                                                    underlying_seg=segment,
+                                                    expiry=expiry_date)
+            if option_chain.get('status') != 'success':
+                logger.error(f"Failed to fetch option chain for {scrip_id} in {segment}")
+                return
+            cache_key = f"option_chain:{scrip_id}_{segment}"
+            chain_data = option_chain.get('data', {})
+            json_data = json.dumps(chain_data)  # Serialize the dict
+            # Cache the processed response (TTL=30s for live data)
+            redis_client.set(cache_key, json_data, ex=300)
+            print("fetched option chain for:", scrip_id)
+            time.sleep(3)  # To avoid hitting rate limits
+
+        except Exception as e:
+            logger.error(f"Error in fetch_and_cache_option_chain: {e}")
+            return None
+    
+
+# Main function with concurrent tasks
+def main_function():
+     # Load environment variables from .env file
+    load_dotenv()
+
+    # Get credentials from .env
+    CLIENT_ID = os.getenv('CLIENT_ID')
+    # ACCESS_TOKEN = os.getenv('ACCESS_TOKEN')
+    ACCESS_TOKENS = os.getenv('ACCESS_TOKENS').split(',') if os.getenv('ACCESS_TOKENS') else []
+
+    if not CLIENT_ID or not ACCESS_TOKENS:
+        raise ValueError("CLIENT_ID or ACCESS_TOKEN not found in .env file")
+    
+    # Create multiple DhanClient instances if ACCESS_TOKENS are provided
+    dcs = [DhanClient(CLIENT_ID, os.getenv(token)) for token in ACCESS_TOKENS]
+
+    # # Redis Connection (update host/port if not local)
+    # redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+    # Test connection (optional, can remove)
+    try:
+        redis_client.ping()
+    except redis.ConnectionError:
+        print("Warning: Redis connection failed. Caching disabled.")
+
+    csv_path = os.path.join(os.path.dirname(__file__), 'Dependencies', 'my_instruments.csv')
+    try:
+        instruments_df = pd.read_csv(csv_path)
+    except FileNotFoundError:
+            raise FileNotFoundError(f"The file '{csv_path}' was not found. Please check the path and ensure the file exists.")
+    
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        for dc, scrip_id, segment in zip(dcs, instruments_df['scrip_id'], instruments_df['segment']):
+            executor.submit(fetch_and_cache_option_chain, dc, redis_client, scrip_id, segment)
+
+
 if __name__ == '__main__':
+    # Start main function in a separate thread
+    thread = threading.Thread(target=main_function, daemon=True)
+    thread.start()
+    
+    # Run Flask app
     app.run(debug=True, port=5000)
+
+   
+
+# @app.route('/get_expiries', methods=['POST'])
+# def get_expiries():
+#     try:
+#         data = request.get_json()
+#         underlying_scrip = data.get('underlying_scrip')
+#         underlying_seg = data.get('underlying_seg')
+        
+#         if not underlying_scrip or not underlying_seg:
+#             return jsonify({"error": "Missing underlying_scrip or underlying_seg"}), 400
+
+#         print(f'Fetching expiries for scrip: {underlying_scrip}, segment: {underlying_seg}')
+#         expiry_list = dhan_client.fetch_expiry_list(
+#             underlying_scrip=underlying_scrip,
+#             underlying_seg=underlying_seg
+#         )
+        
+#         if expiry_list is None:
+#             return jsonify({'error': 'Failed to fetch expiry list data'}), 500
+        
+#         return jsonify(expiry_list)
+        
+#     except Exception as e:
+#         print(f"Error in get_expiries: {str(e)}")
+#         return jsonify({"error": str(e)}), 500
+
