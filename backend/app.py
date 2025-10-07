@@ -143,10 +143,10 @@ def get_option_chain():
     # if not underlying_scrip or not underlying_seg or not expiry:
     #     return jsonify({"error": "Missing underlying_scrip or underlying_seg or expiry"}), 400
 
-    # NEW: Generate cache key
+    # Generate cache key
     cache_key = f"option_chain:{underlying_scrip}_{underlying_seg}"
     
-    # NEW: Check Redis cache
+    # Check Redis cache
     cached_data = redis_client.get(cache_key)
     if cached_data:
         print(f"Cache hit for {cache_key}")
@@ -157,6 +157,27 @@ def get_option_chain():
     processed_response = process_option_chain(json.loads(cached_data))
     
     return processed_response
+
+
+@app.route('/get_expiries', methods=['GET','POST'])
+def get_expiries():
+    try:
+        data = request.get_json()
+        underlying_scrip = data.get('underlying_scrip')
+        underlying_seg = data.get('underlying_seg')
+        
+        if not underlying_scrip or not underlying_seg:
+            return jsonify({"error": "Missing underlying_scrip or underlying_seg"}), 400
+
+        cache_key = f"expiry_date:{underlying_scrip}_{underlying_seg}"
+    
+        # Check Redis cache
+        cached_data = redis_client.get(cache_key)
+        return jsonify({'data': cached_data})
+        
+    except Exception as e:
+        print(f"Error in get_expiries: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/get_all_scrips', methods=['GET'])
@@ -188,11 +209,13 @@ def fetch_and_cache_option_chain(dhan_client, redis_client, scrip_id, segment):
             if option_chain.get('status') != 'success':
                 logger.error(f"Failed to fetch option chain for {scrip_id} in {segment}")
                 return
-            cache_key = f"option_chain:{scrip_id}_{segment}"
+            cache_key_oc = f"option_chain:{scrip_id}_{segment}"
+            cache_key_exp = f"expiry_date:{scrip_id}_{segment}"
             chain_data = option_chain.get('data', {})
+            redis_client.set(cache_key_exp, expiry_date, ex=300)
             json_data = json.dumps(chain_data)  # Serialize the dict
             # Cache the processed response (TTL=30s for live data)
-            redis_client.set(cache_key, json_data, ex=300)
+            redis_client.set(cache_key_oc, json_data, ex=300)
             print("fetched option chain for:", scrip_id)
             time.sleep(3)  # To avoid hitting rate limits
 
@@ -243,31 +266,4 @@ if __name__ == '__main__':
     
     # Run Flask app
     app.run(debug=True, port=5000)
-
-   
-
-# @app.route('/get_expiries', methods=['POST'])
-# def get_expiries():
-#     try:
-#         data = request.get_json()
-#         underlying_scrip = data.get('underlying_scrip')
-#         underlying_seg = data.get('underlying_seg')
-        
-#         if not underlying_scrip or not underlying_seg:
-#             return jsonify({"error": "Missing underlying_scrip or underlying_seg"}), 400
-
-#         print(f'Fetching expiries for scrip: {underlying_scrip}, segment: {underlying_seg}')
-#         expiry_list = dhan_client.fetch_expiry_list(
-#             underlying_scrip=underlying_scrip,
-#             underlying_seg=underlying_seg
-#         )
-        
-#         if expiry_list is None:
-#             return jsonify({'error': 'Failed to fetch expiry list data'}), 500
-        
-#         return jsonify(expiry_list)
-        
-#     except Exception as e:
-#         print(f"Error in get_expiries: {str(e)}")
-#         return jsonify({"error": str(e)}), 500
 

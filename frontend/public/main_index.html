@@ -93,9 +93,7 @@
             <select id="scrip" required>
                 <option value="" disabled>Select a scrip</option>
             </select>
-            <select id="ExpDate" required>
-                <option value="" disabled>Select a date</option>
-            </select>
+            <span id="ExpDate" class="expiry-display">Loading expiry...</span>
         </div>
         <div class="rate-limit-message" id="rateLimitMessage" style="display:none;">Rate limit reached. Retrying...</div>
         <div class="error-message" id="errorMessage" style="display:none;">Error fetching data. Please try again or check the server.</div>
@@ -396,56 +394,41 @@
             const [scrip_id, segment] = selected.split('|');
             window.selectedScripId = scrip_id;
             window.selectedSegment = segment;
-            // fetchExpiries();
-            startFetching();
+            fetchExpiries();
         });
-        // async function fetchExpiries() {
-        //     const scrip_id = window.selectedScripId;
-        //     const segment = window.selectedSegment;
-        //     if (!scrip_id || !segment) {
-        //         showErrorMessage('Please select a scrip.');
-        //         return;
-        //     }
-        //     try {
-        //         const response = await fetch(`${BASE_URL}/get_expiries`, {
-        //             method: 'POST',
-        //             headers: { 'Content-Type': 'application/json' },
-        //             body: JSON.stringify({
-        //                 underlying_scrip: parseInt(scrip_id),
-        //                 underlying_seg: segment
-        //             })
-        //         });
-        //         const data = await response.json();
-        //         if (!data.data) {
-        //             throw new Error(data.error || 'Invalid response format');
-        //         }
-        //         cachedExpiries = { scrip: scrip_id, seg: segment, data: data.data };
-        //         renderExpiries(data.data);
-        //     } catch (error) {
-        //         console.error('Fetch error:', error);
-        //         showErrorMessage(error.message);
-        //     }
-        // }
-        // function renderExpiries(expiries) {
-        //     const ExpSelect = document.getElementById('ExpDate');
-        //     ExpSelect.innerHTML = '<option value="" disabled>Select a date</option>';
-        //     if (!expiries || !Array.isArray(expiries) || expiries.length === 0) {
-        //         showErrorMessage('No valid expiry dates available in response.');
-        //         return;
-        //     }
-        //     console.log('Dropdown data:', expiries);
-        //     expiries.forEach(item => {
-        //         const option = document.createElement('option');
-        //         option.value = item;
-        //         option.textContent = String(item);
-        //         ExpSelect.appendChild(option);
-        //     });
-        //     ExpSelect.disabled = false;
-        //     const selected = document.getElementById('ExpDate').value;
-        //     if (!selected) return;
-        //     selectedExpiry = selected;
-        //     startFetching();
-        // }
+        async function fetchExpiries() {
+            const scrip_id = window.selectedScripId;
+            const segment = window.selectedSegment;
+            if (!scrip_id || !segment) {
+                showErrorMessage('Please select a scrip.');
+                return;
+            }
+            try {
+                const response = await fetch(`${BASE_URL}/get_expiries`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        underlying_scrip: parseInt(scrip_id),
+                        underlying_seg: segment
+                    })
+                });
+                const data = await response.json();
+                if (!data.data) {
+                    throw new Error(data.error || 'Invalid response format');
+                }
+                cachedExpiries = { scrip: scrip_id, seg: segment, data: data.data };
+                renderExpiries(data.data);
+            } catch (error) {
+                console.error('Fetch error:', error);
+                showErrorMessage(error.message);
+            }
+        }
+        function renderExpiries(expiries) {
+            const ExpSelect = document.getElementById('ExpDate');
+            ExpSelect.textContent = expiries ? expiries : 'No expiry available';
+            ExpSelect.classList.remove('error');
+            startFetching();
+        }
         async function fetchChain() {
             const scrip_id = window.selectedScripId;
             const segment = window.selectedSegment;
