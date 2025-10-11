@@ -228,9 +228,9 @@
             }
             const current = strikeLevels.get(strike) || { support: 0, resistance: 0 };
             let nineThirty = nineThirtyStrikeLevels.get(strike) || { support: 0, resistance: 0 };
-            if (!hasSetNineThirty || !isSameTradingDay(new Date(), new Date(nineThirtyData?.date))) {
-                nineThirty = { support: 0, resistance: 0 };
-            }
+            // if (!hasSetNineThirty || !isSameTradingDay(new Date(), new Date(nineThirtyData?.date))) {
+            //     nineThirty = { support: 0, resistance: 0 };
+            // }
             const popup = document.createElement('div');
             popup.classList.add('inline-popup');
             popup.dataset.strike = strike;
@@ -466,7 +466,7 @@
                         setTimeout(() => hideRateLimitMessage(), 2000);
                     }
                     underlyingValue = data.spot_price || data.underlying_price || 0;
-                    checkAndSetNineThirtyData(data);
+                    // checkAndSetNineThirtyData(data);
                     renderTable(data, strikeOption, tableOrder);
                     previousChainData = data;
                     removeErrorMessage();
@@ -681,9 +681,10 @@
             tbody.appendChild(fragment);
             document.getElementById('chainTable').style.display = 'table';
             calculateStrikeLevels(data.chain);
-            if (nineThirtyData) {
-                calculateNineThirtyStrikeLevels();
-            }
+            calculateNineThirtyStrikeLevels();
+            // if (nineThirtyData) {
+            //     calculateNineThirtyStrikeLevels();
+            // }
         }
         function calculateT() {
             const now = new Date();
@@ -696,21 +697,11 @@
             const days = Math.ceil(diffDaysFractional);
             return days / 365;
         }
-        function calculateReversal(row, useNineThirty = false) {
+        function calculateReversal(row) {
             let S = underlyingValue;
             let P = row.put_ltp;
             let C = row.call_ltp;
             const K = row.strike;
-            if (useNineThirty && nineThirtyData) {
-                S = nineThirtyData.s;
-                const strikeData = nineThirtyData.strikes.get(K);
-                if (strikeData) {
-                    P = strikeData.p;
-                    C = strikeData.c;
-                } else {
-                    return 0;
-                }
-            }
             const t = calculateT();
             const exp_term = Math.exp(-RISK_FREE_RATE * t);
             const one_minus_exp = 1 - exp_term;
@@ -738,90 +729,116 @@
                 strikeLevels.set(row.strike, { support: support.toFixed(4), resistance: resistance.toFixed(4) });
             }
         }
-        function calculateNineThirtyStrikeLevels() {
-            if (!nineThirtyData || !nineThirtyData.strikes.size) return;
-            const strikesArray = Array.from(nineThirtyData.strikes.keys()).sort((a, b) => a - b);
-            const chain = strikesArray.map(strike => ({
-                strike,
-                put_ltp: nineThirtyData.strikes.get(strike).p,
-                call_ltp: nineThirtyData.strikes.get(strike).c
-            }));
-            nineThirtyStrikeLevels.clear();
-            const step = strikesArray.length > 1 ? strikesArray[1] - strikesArray[0] : 50;
-            const lowestStrike = strikesArray[0];
-            const lowestData = nineThirtyData.strikes.get(lowestStrike);
-            const hypotheticalLow = { strike: lowestStrike - step, put_ltp: lowestData.p, call_ltp: lowestData.c };
-            const lowSupport = calculateReversal(hypotheticalLow, true);
-            for (let i = 0; i < strikesArray.length; i++) {
-                const row = chain[i];
-                const support = i === 0 ? lowSupport : calculateReversal(row, true);
-                let resistance;
-                if (i < strikesArray.length - 1) {
-                    resistance = calculateReversal(chain[i + 1], true);
-                } else {
-                    const hypotheticalHigh = { ...row, strike: row.strike + step };
-                    resistance = calculateReversal(hypotheticalHigh, true);
+        async function calculateNineThirtyStrikeLevels() {
+            // if (!nineThirtyData || !nineThirtyData.strikes.size) return;
+            // const strikesArray = Array.from(nineThirtyData.strikes.keys()).sort((a, b) => a - b);
+            // const chain = strikesArray.map(strike => ({
+            //     strike,
+            //     put_ltp: nineThirtyData.strikes.get(strike).p,
+            //     call_ltp: nineThirtyData.strikes.get(strike).c
+            // }));
+            // nineThirtyStrikeLevels.clear();
+            // const step = strikesArray.length > 1 ? strikesArray[1] - strikesArray[0] : 50;
+            // const lowestStrike = strikesArray[0];
+            // const lowestData = nineThirtyData.strikes.get(lowestStrike);
+            // const hypotheticalLow = { strike: lowestStrike - step, put_ltp: lowestData.p, call_ltp: lowestData.c };
+            // const lowSupport = calculateReversal(hypotheticalLow, true);
+            // for (let i = 0; i < strikesArray.length; i++) {
+            //     const row = chain[i];
+            //     const support = i === 0 ? lowSupport : calculateReversal(row, true);
+            //     let resistance;
+            //     if (i < strikesArray.length - 1) {
+            //         resistance = calculateReversal(chain[i + 1], true);
+            //     } else {
+            //         const hypotheticalHigh = { ...row, strike: row.strike + step };
+            //         resistance = calculateReversal(hypotheticalHigh, true);
+            //     }
+            //     nineThirtyStrikeLevels.set(row.strike, { support: support.toFixed(4), resistance: resistance.toFixed(4) });
+            // }
+            const scrip_id = window.selectedScripId;
+            const segment = window.selectedSegment;
+            if (!scrip_id || !segment) {
+                showErrorMessage('scrip data not set/taken properly.');
+                return;
+            }
+            try {
+                response = await fetch(`${BASE_URL}/get_nine_thirty_data`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        underlying_scrip: parseInt(scrip_id),
+                        underlying_seg: segment
+                    })
+                });
+                if (!response.ok) {
+                    console.error('Failed to fetch /get_nine_thirty_data:', response.status, response.statusText);
+                    showErrorMessage('Failed to fetch nine_thirty_data: ' + response.statusText);
+                    return;
                 }
-                nineThirtyStrikeLevels.set(row.strike, { support: support.toFixed(4), resistance: resistance.toFixed(4) });
+                const data = await response.json();
+                nineThirtyStrikeLevels = data.data
+            } catch (error){
+                console.error('Fetch error:', error);
+                showErrorMessage(error.message);
             }
         }
-        function loadNineThirtyData() {
-            const storedData = localStorage.getItem('nineThirtyData');
-            if (storedData) {
-                const parsedData = JSON.parse(storedData);
-                const now = new Date();
-                const storedDate = new Date(parsedData.date);
-                if (isSameTradingDay(now, storedDate)) {
-                    nineThirtyData = {
-                        s: parsedData.s,
-                        strikes: new Map(Object.entries(parsedData.strikes).map(([k, v]) => [Number(k), v])),
-                        date: parsedData.date
-                    };
-                    nineThirtyStrikeLevels = new Map(Object.entries(parsedData.strikeLevels || {}).map(([k, v]) => [Number(k), v]));
-                    hasSetNineThirty = true;
-                } else {
-                    localStorage.removeItem('nineThirtyData');
-                    nineThirtyData = null;
-                    nineThirtyStrikeLevels = new Map();
-                    hasSetNineThirty = false;
-                }
-            }
-        }
-        function checkAndSetNineThirtyData(data) {
-            const now = new Date();
-            const isTrading = isTradingDay(now);
-            if (isTrading && !hasSetNineThirty) {
-                const nineThirty = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 30, 0);
-                if (now >= nineThirty && now <= new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 31, 0)) {
-                    setNineThirtyData(data);
-                }
-            }
-        }
-        function setNineThirtyData(data) {
-            if (nineThirtyData || !data.chain.length) return;
-            nineThirtyData = {
-                s: data.underlying_price,
-                strikes: new Map(),
-                date: new Date().toISOString().split('T')[0]
-            };
-            data.chain.forEach(row => {
-                nineThirtyData.strikes.set(row.strike, { p: row.put_ltp, c: row.call_ltp });
-            });
-            saveNineThirtyData();
-            calculateNineThirtyStrikeLevels();
-            hasSetNineThirty = true;
-        }
-        function saveNineThirtyData() {
-            if (nineThirtyData) {
-                const dataToSave = {
-                    s: nineThirtyData.s,
-                    strikes: Object.fromEntries(nineThirtyData.strikes),
-                    date: nineThirtyData.date,
-                    strikeLevels: Object.fromEntries(nineThirtyStrikeLevels)
-                };
-                localStorage.setItem('nineThirtyData', JSON.stringify(dataToSave));
-            }
-        }
+        // function loadNineThirtyData() {
+        //     const storedData = localStorage.getItem('nineThirtyData');
+        //     if (storedData) {
+        //         const parsedData = JSON.parse(storedData);
+        //         const now = new Date();
+        //         const storedDate = new Date(parsedData.date);
+        //         if (isSameTradingDay(now, storedDate)) {
+        //             nineThirtyData = {
+        //                 s: parsedData.s,
+        //                 strikes: new Map(Object.entries(parsedData.strikes).map(([k, v]) => [Number(k), v])),
+        //                 date: parsedData.date
+        //             };
+        //             nineThirtyStrikeLevels = new Map(Object.entries(parsedData.strikeLevels || {}).map(([k, v]) => [Number(k), v]));
+        //             hasSetNineThirty = true;
+        //         } else {
+        //             localStorage.removeItem('nineThirtyData');
+        //             nineThirtyData = null;
+        //             nineThirtyStrikeLevels = new Map();
+        //             hasSetNineThirty = false;
+        //         }
+        //     }
+        // }
+        // function checkAndSetNineThirtyData(data) {
+        //     const now = new Date();
+        //     const isTrading = isTradingDay(now);
+        //     if (isTrading && !hasSetNineThirty) {
+        //         const nineThirty = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 30, 0);
+        //         if (now >= nineThirty && now <= new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 31, 0)) {
+        //             setNineThirtyData(data);
+        //         }
+        //     }
+        // }
+        // function setNineThirtyData(data) {
+        //     if (nineThirtyData || !data.chain.length) return;
+        //     nineThirtyData = {
+        //         s: data.underlying_price,
+        //         strikes: new Map(),
+        //         date: new Date().toISOString().split('T')[0]
+        //     };
+        //     data.chain.forEach(row => {
+        //         nineThirtyData.strikes.set(row.strike, { p: row.put_ltp, c: row.call_ltp });
+        //     });
+        //     saveNineThirtyData();
+        //     calculateNineThirtyStrikeLevels();
+        //     hasSetNineThirty = true;
+        // }
+        // function saveNineThirtyData() {
+        //     if (nineThirtyData) {
+        //         const dataToSave = {
+        //             s: nineThirtyData.s,
+        //             strikes: Object.fromEntries(nineThirtyData.strikes),
+        //             date: nineThirtyData.date,
+        //             strikeLevels: Object.fromEntries(nineThirtyStrikeLevels)
+        //         };
+        //         localStorage.setItem('nineThirtyData', JSON.stringify(dataToSave));
+        //     }
+        // }
         function startFetching() {
             debouncedFetchChain();
             fetchInterval = setInterval(debouncedFetchChain, 10000);
@@ -855,7 +872,7 @@
             input.addEventListener('change', debouncedFetchChain);
         });
         document.addEventListener('DOMContentLoaded', () => {
-            loadNineThirtyData();
+            // loadNineThirtyData();
             fetchScrips();
         });
         // Handle sidebar menu navigation for LiveOptionChain

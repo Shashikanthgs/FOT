@@ -1,6 +1,5 @@
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, request, jsonify
 import numpy as np
-import requests
 import os
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -8,14 +7,13 @@ import pandas as pd
 from dhan_client import DhanClient
 import redis
 import json
-import signal
-import sys
-from dhanhq import marketfeed
-import asyncio
 import time
 import logging
 from concurrent.futures import ThreadPoolExecutor
 import threading
+from datetime import datetime
+import math
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -194,6 +192,121 @@ def get_all_scrips():
         
     return jsonify(scrips_data)
 
+@app.route('/get_nine_thirty_data', methods=['GET','POST'])
+def get_nine_thirty_data():
+    try:
+        data = request.get_json()
+        underlying_scrip = data.get('underlying_scrip')
+        underlying_seg = data.get('underlying_seg')
+        
+        if not underlying_scrip or not underlying_seg:
+            return jsonify({"error": "Missing underlying_scrip or underlying_seg"}), 400
+
+        cache_key = f"nine_thirty_data:{underlying_scrip}_{underlying_seg}"
+    
+        # Check Redis cache
+        cached_data = redis_client.get(cache_key)
+        return jsonify({'data': cached_data})
+    
+    except Exception as e:
+        print(f"Error in get_expiries: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+def calculate_nine_thirty_strike_levels(nine_thirty_data, scrip_id, segment):
+    if not nine_thirty_data or not nine_thirty_data['strikes']:
+        return {}
+    strikes_array = sorted(nine_thirty_data['strikes'].keys())
+    chain = [{'strike': strike, 'put_ltp': nine_thirty_data['strikes'][strike]['p'], 
+              'call_ltp': nine_thirty_data['strikes'][strike]['c']} for strike in strikes_array]
+    nine_thirty_strike_levels = {}
+    step = strikes_array[1] - strikes_array[0] if len(strikes_array) > 1 else 50
+    lowest_strike = strikes_array[0]
+    lowest_data = nine_thirty_data['strikes'][lowest_strike]
+    hypothetical_low = {'strike': lowest_strike - step, 'put_ltp': lowest_data['p'], 'call_ltp': lowest_data['c']}
+    low_support = calculate_reversal(hypothetical_low, True)
+    
+    for i, row in enumerate(chain):
+        support = low_support if i == 0 else calculate_reversal(row, nine_thirty_data, scrip_id, segment)
+        if i < len(strikes_array) - 1:
+            resistance = calculate_reversal(chain[i + 1], nine_thirty_data, scrip_id, segment)
+        else:
+            hypothetical_high = {**row, 'strike': row['strike'] + step}
+            resistance = calculate_reversal(hypothetical_high, nine_thirty_data, scrip_id, segment)
+        nine_thirty_strike_levels[row['strike']] = {
+            'support': f"{support:.4f}",
+            'resistance': f"{resistance:.4f}"
+        }
+    
+    return nine_thirty_strike_levels
+
+def calculate_reversal(row, nine_thirty_data, scrip_id, segment):
+    RISK_FREE_RATE = 0.067
+    P = row['put_ltp']
+    C = row['call_ltp']
+    K = row['strike']
+    S = nine_thirty_data['s']
+    
+    strike_data = nine_thirty_data['strikes'].get(K)
+    if strike_data:
+        P = strike_data['p']
+        C = strike_data['c']
+    else:
+        return 0
+    t = calculate_t(scrip_id, segment)
+    exp_term = math.exp(-RISK_FREE_RATE * t)
+    one_minus_exp = 1 - exp_term
+    reversal = S - K + P - C + K * one_minus_exp
+    return K + reversal
+
+def calculate_t(scrip_id, segment):
+    now = datetime.now()
+    cache_key = f"expiry_date:{scrip_id}_{segment}"
+    selected_expiry = redis_client.get(cache_key)
+
+    expiry_date = datetime.strptime(f"{selected_expiry} 15:30:00+05:30", "%Y-%m-%d %H:%M:%S%z")
+    diff_ms = (expiry_date - now).total_seconds() * 1000
+    if diff_ms <= 0:
+        return 0
+    diff_days_fractional = diff_ms / (1000 * 60 * 60 * 24)
+    days = math.ceil(diff_days_fractional)
+    return days / 365
+
+def calc_nine_thirty_data(chain_data: dict, scrip_id, segment):
+    
+    nine_thirty_chain_data = {
+        's': chain_data['underlying_price'],
+        'strikes': {},
+        'date': datetime.now().strftime('%Y-%m-%d')
+    }
+    for row in chain_data['chain']:
+        nine_thirty_chain_data['strikes'][row['strike']] = {'p': row['put_ltp'], 'c': row['call_ltp']}
+    
+    nine_thirty_strike_levels = calculate_nine_thirty_strike_levels(nine_thirty_chain_data, scrip_id, segment)
+    nine_thirty_data = {
+        's': chain_data['underlying_price'],
+        'strikes': {},
+        'date': datetime.now().strftime('%Y-%m-%d'),
+        'strikeLevels': dict(nine_thirty_strike_levels)
+    }
+
+    return nine_thirty_data
+
+def is_start_of_trading_day():
+    load_dotenv()
+    nse_holidays = os.getenv('NSE_HOLIDAYS')
+    state = False
+    now = datetime.now()
+    day = now.weekday()
+    date_str = now.strftime('%Y-%m-%d')
+    if (day != 0 and day != 6 and date_str not in nse_holidays):
+        now = datetime.now()
+        nine_thirty = datetime(now.year, now.month, now.day, 9, 30, 0)
+        nine_thirty_one = datetime(now.year, now.month, now.day, 9, 31, 0)
+        if nine_thirty <= now <= nine_thirty_one:
+            state = True
+    return state
+
 # Function to fetch and cache option chain data
 def fetch_and_cache_option_chain(dhan_client, redis_client, scrip_id, segment):
     while True:
@@ -211,11 +324,17 @@ def fetch_and_cache_option_chain(dhan_client, redis_client, scrip_id, segment):
                 return
             cache_key_oc = f"option_chain:{scrip_id}_{segment}"
             cache_key_exp = f"expiry_date:{scrip_id}_{segment}"
+            cache_key_nine_thirty_data = f"nine_thirty_data:{scrip_id}_{segment}"
             chain_data = option_chain.get('data', {})
             redis_client.set(cache_key_exp, expiry_date, ex=300)
             json_data = json.dumps(chain_data)  # Serialize the dict
             # Cache the processed response (TTL=30s for live data)
             redis_client.set(cache_key_oc, json_data, ex=300)
+            cached_data = redis_client.get(cache_key_nine_thirty_data)
+            if not cached_data and is_start_of_trading_day():
+                nine_thirty_data = calc_nine_thirty_data(chain_data, scrip_id, segment)
+                redis_client.set(cache_key_nine_thirty_data, nine_thirty_data, ex=84540)
+
             print("fetched option chain for:", scrip_id)
             time.sleep(3)  # To avoid hitting rate limits
 
