@@ -641,3 +641,9 @@ td:nth-child(13) { /* Volume */
     border-color: var(--color-hover-primary); /* Highlight on focus */
 }
 
+.expiry-display {
+    font-size: 4rem; /* Matches the dropdown select font size */
+    white-space: nowrap; /* Prevent text wrapping to ensure full date visibility */
+    min-width: 500px; /* Ensure enough space for typical date format (e.g., YYYY-MM-DD) */
+}
+

@@ -31,7 +31,7 @@
         .status-approved { color: green; }
         .status-rejected { color: red; }
         .status-unknown { color: gray; }
-        .approve-btn, .reject-btn, .delete-btn, .clear-data-btn {
+        .approve-btn, .reject-btn, .delete-btn, .clear-data-btn, .extend-btn {
             background: #00bcd4;
             color: #fff;
             border: none;
@@ -49,6 +49,9 @@
         .clear-data-btn {
             background: #666;
         }
+        .extend-btn {
+            background: #4caf50;
+        }
         .approve-btn:hover {
             background: #0097a7;
         }
@@ -61,13 +64,16 @@
         .clear-data-btn:hover {
             background: #555;
         }
-        .clear-data-container {
-            text-align: center;
-            margin-top: 20px;
+        .extend-btn:hover {
+            background: #388e3c;
         }
         .expiry-input {
             margin-left: 10px;
             padding: 5px;
+        }
+        .clear-data-container {
+            text-align: center;
+            margin-top: 20px;
         }
     </style>
 </head>
@@ -126,6 +132,10 @@
                             <button class="approve-btn" data-id="${user.id}">Approve</button>
                             <button class="reject-btn" data-id="${user.id}">Reject</button>
                         ` : ""}
+                        ${status === "approved" ? `
+                            <input type="date" class="expiry-input" data-id="${user.id}" min="${new Date().toISOString().split('T')[0]}" placeholder="Extend expiry date">
+                            <button class="extend-btn" data-id="${user.id}">Extend Expiry</button>
+                        ` : ""}
                         <button class="delete-btn" data-id="${user.id}">Delete</button>
                     </div>
                 `;
@@ -163,6 +173,22 @@
                 localStorage.setItem("users", JSON.stringify(users));
                 localStorage.setItem("pendingUsers", JSON.stringify(pendingUsers));
                 alert("User rejected!");
+                loadUsers();
+            } else if (e.target.classList.contains("extend-btn")) {
+                const expiryInput = document.querySelector(`.expiry-input[data-id="${userId}"]`);
+                const newExpiryDate = expiryInput.value ? new Date(expiryInput.value).toISOString() : null;
+                if (!newExpiryDate) {
+                    alert("Please select a new expiry date!");
+                    return;
+                }
+                users = users.map(user => {
+                    if (user.id === userId) {
+                        return { ...user, expiryDate: newExpiryDate };
+                    }
+                    return user;
+                });
+                localStorage.setItem("users", JSON.stringify(users));
+                alert("Expiry date extended!");
                 loadUsers();
             } else if (e.target.classList.contains("delete-btn")) {
                 if (confirm(`Are you sure you want to delete user with ID ${userId}?`)) {

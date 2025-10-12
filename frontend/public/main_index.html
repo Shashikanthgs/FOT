@@ -227,10 +227,14 @@
                 currentPopup = null;
             }
             const current = strikeLevels.get(strike) || { support: 0, resistance: 0 };
-            let nineThirty = nineThirtyStrikeLevels.get(strike) || { support: 0, resistance: 0 };
+            // let nineThirty = nineThirtyStrikeLevels.get(strike) || { support: 0, resistance: 0 };
             // if (!hasSetNineThirty || !isSameTradingDay(new Date(), new Date(nineThirtyData?.date))) {
             //     nineThirty = { support: 0, resistance: 0 };
             // }
+            nineThirty = { support: 0, resistance: 0 };
+            if (nineThirtyStrikeLevels) {
+                nineThirty = nineThirtyStrikeLevels.get(strike);
+            }
             const popup = document.createElement('div');
             popup.classList.add('inline-popup');
             popup.dataset.strike = strike;
@@ -425,6 +429,7 @@
         }
         function renderExpiries(expiries) {
             const ExpSelect = document.getElementById('ExpDate');
+            // selectedExpiry = expiries && expiries.length > 0 ? expiries[0] : null; // Set selectedExpiry
             ExpSelect.textContent = expiries ? expiries : 'No expiry available';
             ExpSelect.classList.remove('error');
             startFetching();
@@ -726,6 +731,7 @@
                     const hypotheticalHigh = { ...row, strike: row.strike + step };
                     resistance = calculateReversal(hypotheticalHigh);
                 }
+                console.log('Support;',support.toFixed(4),'resistance;',resistance.toFixed(4))
                 strikeLevels.set(row.strike, { support: support.toFixed(4), resistance: resistance.toFixed(4) });
             }
         }
