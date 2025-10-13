@@ -429,7 +429,7 @@
         }
         function renderExpiries(expiries) {
             const ExpSelect = document.getElementById('ExpDate');
-            // selectedExpiry = expiries && expiries.length > 0 ? expiries[0] : null; // Set selectedExpiry
+            selectedExpiry = expiries ? expiries : null; // Set selectedExpiry
             ExpSelect.textContent = expiries ? expiries : 'No expiry available';
             ExpSelect.classList.remove('error');
             startFetching();
@@ -731,7 +731,6 @@
                     const hypotheticalHigh = { ...row, strike: row.strike + step };
                     resistance = calculateReversal(hypotheticalHigh);
                 }
-                console.log('Support;',support.toFixed(4),'resistance;',resistance.toFixed(4))
                 strikeLevels.set(row.strike, { support: support.toFixed(4), resistance: resistance.toFixed(4) });
             }
         }
