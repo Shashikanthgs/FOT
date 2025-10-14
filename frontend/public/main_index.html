@@ -249,7 +249,7 @@
                     <div class="divider"></div>
                     <div>
                         <p><strong>9:30 AM Elastic Ends</strong></p>
-                        ${hasSetNineThirty && isSameTradingDay(new Date(), new Date(nineThirtyData?.date))
+                        ${hasSetNineThirty
                             ? `<p class="resistance">Resistance: ${nineThirty.resistance}</p>
                                <p class="support">Support: ${nineThirty.support}</p>`
                             : '<p>Not fetched today\'s values at 9:30 AM</p>'}
@@ -687,9 +687,6 @@
             document.getElementById('chainTable').style.display = 'table';
             calculateStrikeLevels(data.chain);
             calculateNineThirtyStrikeLevels();
-            // if (nineThirtyData) {
-            //     calculateNineThirtyStrikeLevels();
-            // }
         }
         function calculateT() {
             const now = new Date();
@@ -735,31 +732,6 @@
             }
         }
         async function calculateNineThirtyStrikeLevels() {
-            // if (!nineThirtyData || !nineThirtyData.strikes.size) return;
-            // const strikesArray = Array.from(nineThirtyData.strikes.keys()).sort((a, b) => a - b);
-            // const chain = strikesArray.map(strike => ({
-            //     strike,
-            //     put_ltp: nineThirtyData.strikes.get(strike).p,
-            //     call_ltp: nineThirtyData.strikes.get(strike).c
-            // }));
-            // nineThirtyStrikeLevels.clear();
-            // const step = strikesArray.length > 1 ? strikesArray[1] - strikesArray[0] : 50;
-            // const lowestStrike = strikesArray[0];
-            // const lowestData = nineThirtyData.strikes.get(lowestStrike);
-            // const hypotheticalLow = { strike: lowestStrike - step, put_ltp: lowestData.p, call_ltp: lowestData.c };
-            // const lowSupport = calculateReversal(hypotheticalLow, true);
-            // for (let i = 0; i < strikesArray.length; i++) {
-            //     const row = chain[i];
-            //     const support = i === 0 ? lowSupport : calculateReversal(row, true);
-            //     let resistance;
-            //     if (i < strikesArray.length - 1) {
-            //         resistance = calculateReversal(chain[i + 1], true);
-            //     } else {
-            //         const hypotheticalHigh = { ...row, strike: row.strike + step };
-            //         resistance = calculateReversal(hypotheticalHigh, true);
-            //     }
-            //     nineThirtyStrikeLevels.set(row.strike, { support: support.toFixed(4), resistance: resistance.toFixed(4) });
-            // }
             const scrip_id = window.selectedScripId;
             const segment = window.selectedSegment;
             if (!scrip_id || !segment) {
@@ -781,72 +753,24 @@
                     return;
                 }
                 const data = await response.json();
-                nineThirtyStrikeLevels = data.data
+                parsedData = JSON.parse(data.data)
+                const now = new Date();
+                storedDate = new Date(parsedData.date)
+                hasSetNineThirty = false;
+                if(isSameTradingDay(now, storedDate)) {
+                    nineThirtyStrikeLevels = new Map(Object.entries(parsedData.strikeLevels || {}).map(([k, v]) => [Number(k), v]));
+                    hasSetNineThirty = true;
+                }
+                
+                
             } catch (error){
                 console.error('Fetch error:', error);
                 showErrorMessage(error.message);
             }
         }
-        // function loadNineThirtyData() {
-        //     const storedData = localStorage.getItem('nineThirtyData');
-        //     if (storedData) {
-        //         const parsedData = JSON.parse(storedData);
-        //         const now = new Date();
-        //         const storedDate = new Date(parsedData.date);
-        //         if (isSameTradingDay(now, storedDate)) {
-        //             nineThirtyData = {
-        //                 s: parsedData.s,
-        //                 strikes: new Map(Object.entries(parsedData.strikes).map(([k, v]) => [Number(k), v])),
-        //                 date: parsedData.date
-        //             };
-        //             nineThirtyStrikeLevels = new Map(Object.entries(parsedData.strikeLevels || {}).map(([k, v]) => [Number(k), v]));
-        //             hasSetNineThirty = true;
-        //         } else {
-        //             localStorage.removeItem('nineThirtyData');
-        //             nineThirtyData = null;
-        //             nineThirtyStrikeLevels = new Map();
-        //             hasSetNineThirty = false;
-        //         }
-        //     }
-        // }
-        // function checkAndSetNineThirtyData(data) {
-        //     const now = new Date();
-        //     const isTrading = isTradingDay(now);
-        //     if (isTrading && !hasSetNineThirty) {
-        //         const nineThirty = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 30, 0);
-        //         if (now >= nineThirty && now <= new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 31, 0)) {
-        //             setNineThirtyData(data);
-        //         }
-        //     }
-        // }
-        // function setNineThirtyData(data) {
-        //     if (nineThirtyData || !data.chain.length) return;
-        //     nineThirtyData = {
-        //         s: data.underlying_price,
-        //         strikes: new Map(),
-        //         date: new Date().toISOString().split('T')[0]
-        //     };
-        //     data.chain.forEach(row => {
-        //         nineThirtyData.strikes.set(row.strike, { p: row.put_ltp, c: row.call_ltp });
-        //     });
-        //     saveNineThirtyData();
-        //     calculateNineThirtyStrikeLevels();
-        //     hasSetNineThirty = true;
-        // }
-        // function saveNineThirtyData() {
-        //     if (nineThirtyData) {
-        //         const dataToSave = {
-        //             s: nineThirtyData.s,
-        //             strikes: Object.fromEntries(nineThirtyData.strikes),
-        //             date: nineThirtyData.date,
-        //             strikeLevels: Object.fromEntries(nineThirtyStrikeLevels)
-        //         };
-        //         localStorage.setItem('nineThirtyData', JSON.stringify(dataToSave));
-        //     }
-        // }
         function startFetching() {
             debouncedFetchChain();
-            fetchInterval = setInterval(debouncedFetchChain, 10000);
+            fetchInterval = setInterval(debouncedFetchChain, 1000);
         }
         function stopFetching() {
             if (fetchInterval) {
@@ -855,7 +779,7 @@
             }
             hideRateLimitMessage();
         }
-        const debouncedFetchChain = debounce(throttle(fetchChain), 5000);
+        const debouncedFetchChain = debounce(throttle(fetchChain), 500);
         function showErrorMessage(message) {
             isError = true;
             const errorDiv = document.getElementById('errorMessage');
