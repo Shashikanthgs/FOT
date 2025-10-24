@@ -1,0 +1,39 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file: backend/.env.dev
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "--reload", "backend:create_app()"] 
+    networks:
+      - app-network
+
+  worker:  # Background thread service
+    build: .
+    command: ["python", "-m", "backend.bg_worker"]
+    env_file: backend/.env.dev
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
+    healthcheck: 
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:          # ✅ MUST be at ROOT level
+  app-network:     # ✅ Defined here
+    driver: bridge
