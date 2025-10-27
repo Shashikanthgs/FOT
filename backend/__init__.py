@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import pandas as pd
 from flask_cors import CORS
 from .config import DevelopmentConfig
-
+from .redis_client import get_redis_client  # new
 
 def create_app(config_class=None):
     app = Flask(__name__)
@@ -18,24 +18,11 @@ def create_app(config_class=None):
     # CORS
     CORS(app, origins=app.config['CORS_ALLOWED_ORIGINS'])
     
-    # Redis
+    # Redis (use centralized factory so worker & app share same config/behaviour)
     load_dotenv()
-    
-    # Initialize Redis client
-    redis_client = redis.Redis(
-        host=os.getenv('REDIS_HOST'),
-        port=6379,
-        db=0
-    )
-    try:
-        if redis_client.ping():
-            print("Redis connection successful!")
-        else:
-            print("Redis server did not respond to PING.")
-    except redis.exceptions.ConnectionError as e:
-        print(f"Could not connect to Redis: {e}")
-        raise
-    
+    redis_client = get_redis_client()
+    app.redis_client = redis_client
+
     from .main import main_bp
     app.register_blueprint(main_bp)
     
