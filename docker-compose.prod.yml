@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    network_mode: host
+    env_file: backend/.env
+    command: ["gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "--reload", "backend:create_app()"] 
+    environment:
+      - REDIS_HOST=localhost
+      - REDIS_PORT=6379
+
+  worker:  # Background thread service
+    build: .
+    command: ["python", "-m", "backend.bg_worker"]
+    env_file: backend/.env
+    network_mode: host
+    environment:
+      - REDIS_HOST=localhost
+      - REDIS_PORT=6379

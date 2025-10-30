@@ -158,7 +158,16 @@
             '2025-11-05': 'Prakash Gurpurb Sri Guru Nanak Dev',
             '2025-12-25': 'Christmas'
         };
-        const BASE_URL = 'http://127.0.0.1:5000';
+        const BASE_URL = (function() {
+            const host = window.location.hostname;
+            const proto = (window.location.protocol && window.location.protocol.startsWith('http')) ? window.location.protocol : 'http:';
+            // If frontend is opened from file:// or served from a different host, default to localhost:8000
+            if (!host || host === 'localhost' || host === '127.0.0.1') {
+                return `${proto}//127.0.0.1:8000`;
+            }
+            // Otherwise use same origin (useful if frontend served from a host that proxies the backend)
+            return window.location.origin;
+        })();
         let retryCount = 0;
         const MAX_RETRIES = 5;
         const RETRY_DELAY = 10000;

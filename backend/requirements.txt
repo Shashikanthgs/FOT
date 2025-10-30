@@ -18,6 +18,7 @@ dhanhq==2.0.2
 executing==2.2.1
 Flask==3.1.1
 flask-cors==6.0.1
+gunicorn==22.0.0
 hiredis==3.2.1
 hyperlink==21.0.0
 idna==3.10
@@ -51,7 +52,6 @@ pyOpenSSL==25.1.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.1
 pytz==2025.2
-pywin32==311
 pyzmq==27.0.2
 redis==6.4.0
 requests==2.32.4

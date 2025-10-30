@@ -1,5 +1,3 @@
-from urllib import response
-import pandas as pd
 import requests
 
 class DhanClient:
@@ -7,7 +5,6 @@ class DhanClient:
         self.client_id = client_id
         self.access_token = access_token
         self.base_url = base_url
-            
 
     def fetch_expiry_list(self, underlying_scrip, underlying_seg):
         url = f"{self.base_url}/optionchain/expirylist"
