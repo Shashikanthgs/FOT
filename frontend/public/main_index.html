@@ -755,13 +755,19 @@
                 const data = await response.json();
                 parsedData = JSON.parse(data.data)
                 const now = new Date();
-                storedDate = new Date(parsedData.date)
-                hasSetNineThirty = false;
-                if(isSameTradingDay(now, storedDate)) {
-                    nineThirtyStrikeLevels = new Map(Object.entries(parsedData.strikeLevels || {}).map(([k, v]) => [Number(k), v]));
-                    hasSetNineThirty = true;
+                if (!parsedData){
+                    hasSetNineThirty = false;
+                }
+                else{
+                    storedDate = new Date(parsedData.date)
+                
+                    if(isSameTradingDay(now, storedDate)) {
+                        nineThirtyStrikeLevels = new Map(Object.entries(parsedData.strikeLevels || {}).map(([k, v]) => [Number(k), v]));
+                        hasSetNineThirty = true;
                 }
                 
+                }
+
                 
             } catch (error){
                 console.error('Fetch error:', error);
