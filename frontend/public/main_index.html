@@ -816,6 +816,27 @@
             input.addEventListener('change', debouncedFetchChain);
         });
         document.addEventListener('DOMContentLoaded', () => {
+            // Authentication guard: redirect to login if not signed-in or not approved
+            try {
+                const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+                if (!currentUser || !currentUser.email) {
+                    window.location.href = 'Login_index.html';
+                    return;
+                }
+                const users = JSON.parse(localStorage.getItem('users') || '[]');
+                const userObj = users.find(u => u.email === currentUser.email);
+                if (!userObj || userObj.status !== 'approved') {
+                    alert('Your account is not approved or you are not logged in. Redirecting to login.');
+                    localStorage.removeItem('currentUser');
+                    window.location.href = 'Login_index.html';
+                    return;
+                }
+            } catch (e) {
+                console.error('Auth check error:', e);
+                localStorage.removeItem('currentUser');
+                window.location.href = 'Login_index.html';
+                return;
+            }
             // loadNineThirtyData();
             fetchScrips();
         });

@@ -5,18 +5,17 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "npm install && mkdir -p dist && cp -r public/* dist/ || cp -r ./* dist/"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "fs": "^0.0.1-security",
     "install": "^0.13.0",
-    "nodemailer": "^7.0.6",
     "npm": "^11.6.0",
     "path": "^0.12.7"
   }
