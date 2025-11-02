@@ -4,12 +4,13 @@ services:
     ports:
       - "8000:8000"
     env_file: backend/.env.dev
-    command: ["gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "--reload", "backend:create_app()"] 
+    command: ["gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "--reload", "--env", "FLASK_CONFIG=backend.config.DevelopmentConfig", "backend:create_app()"] 
     networks:
       - app-network
     environment:
       - REDIS_HOST=host.docker.internal
       - REDIS_PORT=6379
+      - FLASK_CONFIG=backend.config.DevelopmentConfig
 
   worker:  # Background thread service
     build: .

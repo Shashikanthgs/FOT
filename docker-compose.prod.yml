@@ -3,10 +3,11 @@ services:
     build: .
     network_mode: host
     env_file: backend/.env
-    command: ["gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "--reload", "backend:create_app()"] 
+    command: ["gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "--reload", "--env", "FLASK_CONFIG=backend.config.ProductionConfig", "backend:create_app()"] 
     environment:
       - REDIS_HOST=localhost
       - REDIS_PORT=6379
+      - FLASK_CONFIG=backend.config.ProductionConfig
 
   worker:  # Background thread service
     build: .
