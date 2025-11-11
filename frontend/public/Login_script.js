@@ -142,7 +142,7 @@ if (loginForm) {
         localStorage.setItem("currentUser", JSON.stringify({ email }));
         alert("Welcome to SOC!");
         document.body.classList.remove("show-popup");
-        window.location.href = "main_index.html";
+        window.location.href = "main.html";
     });
 }
 
