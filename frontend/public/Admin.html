@@ -13,13 +13,8 @@
             background: #fff;
             border-radius: 5px;
         }
-        .admin-container h2 {
-            text-align: center;
-        }
-        .user-list {
-            list-style: none;
-            padding: 0;
-        }
+        .admin-container h2 { text-align: center; }
+        .user-list { list-style: none; padding: 0; }
         .user-list li {
             display: flex;
             justify-content: space-between;
@@ -40,41 +35,17 @@
             cursor: pointer;
             margin-left: 10px;
         }
-        .reject-btn {
-            background: #ff4444;
-        }
-        .delete-btn {
-            background: #888;
-        }
-        .clear-data-btn {
-            background: #666;
-        }
-        .extend-btn {
-            background: #4caf50;
-        }
-        .approve-btn:hover {
-            background: #0097a7;
-        }
-        .reject-btn:hover {
-            background: #cc0000;
-        }
-        .delete-btn:hover {
-            background: #666;
-        }
-        .clear-data-btn:hover {
-            background: #555;
-        }
-        .extend-btn:hover {
-            background: #388e3c;
-        }
-        .expiry-input {
-            margin-left: 10px;
-            padding: 5px;
-        }
-        .clear-data-container {
-            text-align: center;
-            margin-top: 20px;
-        }
+        .reject-btn { background: #ff4444; }
+        .delete-btn { background: #888; }
+        .clear-data-btn { background: #666; }
+        .extend-btn { background: #4caf50; }
+        .approve-btn:hover { background: #0097a7; }
+        .reject-btn:hover { background: #cc0000; }
+        .delete-btn:hover { background: #666; }
+        .clear-data-btn:hover { background: #555; }
+        .extend-btn:hover { background: #388e3c; }
+        .expiry-input { margin-left: 10px; padding: 5px; }
+        .clear-data-container { text-align: center; margin-top: 20px; }
     </style>
 </head>
 <body>
@@ -87,132 +58,150 @@
             </div>
         </div>
     </div>
-    <script>
-        function loadUsers() {
-            let users = [];
-            try {
-                const storedUsers = localStorage.getItem("users");
-                users = storedUsers ? JSON.parse(storedUsers) : [];
-                if (!Array.isArray(users)) {
-                    console.error("Invalid users data: not an array");
-                    users = [];
-                    localStorage.setItem("users", JSON.stringify(users));
-                }
-                // Validate each user object
-                users = users.filter(user => {
-                    if (!user.email || !user.id || !user.status) {
-                        console.error("Invalid user object:", user);
-                        return false;
-                    }
-                    return true;
-                });
-                localStorage.setItem("users", JSON.stringify(users));
-            } catch (error) {
-                console.error("Error parsing users from localStorage:", error);
-                users = [];
-                localStorage.setItem("users", JSON.stringify(users));
-            }
 
-            const userList = document.getElementById("userList");
-            userList.innerHTML = "";
-            if (users.length === 0) {
-                userList.innerHTML = "<li>No users found.</li>";
-                return;
+    <script>
+        const BASE_URL = (function(){
+            const host = window.location.hostname;
+            if (host === 'localhost' || host === '127.0.0.1') {
+                return `${window.location.protocol}//127.0.0.1:8000`;
             }
+            return window.location.origin;
+        })();
+
+        function getAdminKey() {
+            let key = sessionStorage.getItem('adminKey');
+            if (!key) {
+                key = prompt('Enter ADMIN SECRET to access admin panel:');
+                if (key) sessionStorage.setItem('adminKey', key);
+            }
+            return key;
+        }
+
+        async function fetchPending() {
+            const adminKey = getAdminKey();
+            if (!adminKey) return alert('Admin key required.');
+
+            try {
+                const resp = await fetch(`${BASE_URL}/api/admin/pending`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        X_ADMIN_KEY: adminKey
+                    })  
+                });
+
+                if (resp.status === 401) {
+                    sessionStorage.removeItem('adminKey');
+                    alert('Unauthorized. Please re-enter admin key.');
+                    getAdminKey();
+                    return;
+                }
+
+                const data = await resp.json();
+                if (data.error) return alert('Error: ' + data.error);
+
+                renderPendingList(data.pending || []);
+            } catch (err) {
+                console.error(err);
+                alert('Network error.');
+            }
+        }
+
+        function renderPendingList(users) {
+            const userList = document.getElementById('userList');
+            userList.innerHTML = users.length === 0 ? '<li>No pending users.</li>' : '';
 
             users.forEach(user => {
-                const li = document.createElement("li");
-                const status = user.status || "unknown";
-                const expiry = user.expiryDate ? new Date(user.expiryDate).toLocaleDateString() : "None";
+                const li = document.createElement('li');
+                const expiryId = `expiry-${user.email}`;
                 li.innerHTML = `
-                    <span>${user.email} (<span class="status-${status}">${status}</span>, Expiry: ${expiry})</span>
+                    <span>${user.email} (${user.phone || 'n/a'}) - Created: ${new Date(user.createdAt).toLocaleString()}</span>
                     <div>
-                        ${status === "pending" ? `
-                            <input type="date" class="expiry-input" data-id="${user.id}" min="${new Date().toISOString().split('T')[0]}" placeholder="Set expiry date">
-                            <button class="approve-btn" data-id="${user.id}">Approve</button>
-                            <button class="reject-btn" data-id="${user.id}">Reject</button>
-                        ` : ""}
-                        ${status === "approved" ? `
-                            <input type="date" class="expiry-input" data-id="${user.id}" min="${new Date().toISOString().split('T')[0]}" placeholder="Extend expiry date">
-                            <button class="extend-btn" data-id="${user.id}">Extend Expiry</button>
-                        ` : ""}
-                        <button class="delete-btn" data-id="${user.id}">Delete</button>
+                        <input type="date" class="expiry-input" id="${expiryId}">
+                        <button class="approve-btn" data-email="${user.email}">Approve</button>
+                        <button class="reject-btn" data-email="${user.email}">Reject</button>
                     </div>
                 `;
                 userList.appendChild(li);
             });
         }
 
-        document.addEventListener("click", (e) => {
-            const userId = e.target.dataset.id;
-            let users = JSON.parse(localStorage.getItem("users") || "[]");
-            let pendingUsers = JSON.parse(localStorage.getItem("pendingUsers") || "[]");
+        async function sendAdminAction(email, action, expiryDate = null) {
+            const adminKey = getAdminKey();
+            if (!adminKey) return alert('Admin key required.');
 
-            if (e.target.classList.contains("approve-btn")) {
-                const expiryInput = document.querySelector(`.expiry-input[data-id="${userId}"]`);
-                const expiryDate = expiryInput.value ? new Date(expiryInput.value).toISOString() : null;
-                users = users.map(user => {
-                    if (user.id === userId) {
-                        return { ...user, status: "approved", expiryDate };
-                    }
-                    return user;
+            if (expiryDate) expiryDate = expiryDate;
+
+            try {
+                const resp = await fetch(`${BASE_URL}/api/admin/action`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        X_ADMIN_KEY: adminKey,
+                        email: email,
+                        action: action,
+                        expiryDate: expiryDate
+                    })
                 });
-                pendingUsers = pendingUsers.filter(p => p.id !== userId);
-                localStorage.setItem("users", JSON.stringify(users));
-                localStorage.setItem("pendingUsers", JSON.stringify(pendingUsers));
-                alert("User approved!");
-                loadUsers();
-            } else if (e.target.classList.contains("reject-btn")) {
-                users = users.map(user => {
-                    if (user.id === userId) {
-                        return { ...user, status: "rejected", expiryDate: null };
-                    }
-                    return user;
-                });
-                pendingUsers = pendingUsers.filter(p => p.id !== userId);
-                localStorage.setItem("users", JSON.stringify(users));
-                localStorage.setItem("pendingUsers", JSON.stringify(pendingUsers));
-                alert("User rejected!");
-                loadUsers();
-            } else if (e.target.classList.contains("extend-btn")) {
-                const expiryInput = document.querySelector(`.expiry-input[data-id="${userId}"]`);
-                const newExpiryDate = expiryInput.value ? new Date(expiryInput.value).toISOString() : null;
-                if (!newExpiryDate) {
-                    alert("Please select a new expiry date!");
-                    return;
+
+                const result = await resp.json();
+                if (resp.ok) {
+                    alert(result.message || 'Action completed.');
+                    fetchPending();
+                } else {
+                    alert('Error: ' + (result.error || 'Unknown'));
                 }
-                users = users.map(user => {
-                    if (user.id === userId) {
-                        return { ...user, expiryDate: newExpiryDate };
-                    }
-                    return user;
-                });
-                localStorage.setItem("users", JSON.stringify(users));
-                alert("Expiry date extended!");
-                loadUsers();
-            } else if (e.target.classList.contains("delete-btn")) {
-                if (confirm(`Are you sure you want to delete user with ID ${userId}?`)) {
-                    users = users.filter(user => user.id !== userId);
-                    pendingUsers = pendingUsers.filter(p => p.id !== userId);
-                    localStorage.setItem("users", JSON.stringify(users));
-                    localStorage.setItem("pendingUsers", JSON.stringify(pendingUsers));
-                    alert("User deleted!");
-                    loadUsers();
-                }
-            } else if (e.target.classList.contains("clear-data-btn")) {
-                if (confirm("Are you sure you want to clear all user data? This cannot be undone.")) {
-                    localStorage.removeItem("users");
-                    localStorage.removeItem("pendingUsers");
-                    localStorage.removeItem("currentUser");
-                    alert("All user data cleared!");
-                    loadUsers();
-                }
+            } catch (err) {
+                console.error(err);
+                alert('Network error.');
+            }
+        }
+
+        // Event delegation for buttons
+        document.getElementById('userList').addEventListener('click', e => {
+            const email = e.target.dataset.email;
+            if (!email) return;
+
+            if (e.target.classList.contains('approve-btn')) {
+                const expiryInput = document.getElementById(`expiry-${email}`);
+                const expiryDate = expiryInput.value || null;
+                sendAdminAction(email, 'approve', expiryDate);
+            } else if (e.target.classList.contains('reject-btn')) {
+                sendAdminAction(email, 'reject');
             }
         });
 
-        document.addEventListener("DOMContentLoaded", () => {
-            loadUsers();
+        document.querySelector('.clear-data-btn').addEventListener('click', async () => {
+            if (!confirm('Clear ALL user data permanently?')) return;
+
+            const adminKey = getAdminKey();
+            if (!adminKey) return;
+
+            try {
+                const resp = await fetch(`${BASE_URL}/api/admin/clear-all`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        X_ADMIN_KEY: adminKey
+                    })
+                });
+
+                const data = await resp.json();
+                alert(data.message || 'Cleared.');
+                fetchPending();
+            } catch (err) {
+                alert('Clear failed.');
+            }
         });
+
+        // Load pending users on page load
+        fetchPending();
     </script>
 </body>
 </html>

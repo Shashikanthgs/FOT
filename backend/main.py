@@ -1,3 +1,4 @@
+import email
 from flask import Blueprint, request, jsonify, current_app
 import numpy as np
 import os
@@ -9,6 +10,8 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import math
+import smtplib
+from email.message import EmailMessage
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -113,7 +116,7 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
 
-@main_bp.route('/get_option_chain', methods=['GET', 'POST'])
+@main_bp.route('/api/get_option_chain', methods=['GET', 'POST'])
 def get_option_chain():
     data = request.get_json() or {}
     underlying_scrip = data.get('underlying_scrip')
@@ -139,7 +142,7 @@ def get_option_chain():
     return processed_response
 
 
-@main_bp.route('/get_expiries', methods=['GET','POST'])
+@main_bp.route('/api/get_expiries', methods=['GET','POST'])
 def get_expiries():
     try:
         data = request.get_json() or {}
@@ -162,7 +165,7 @@ def get_expiries():
         return jsonify({"error": str(e)}), 500
 
 
-@main_bp.route('/get_all_scrips', methods=['GET'])
+@main_bp.route('/api/get_all_scrips', methods=['GET'])
 def get_all_scrips():
 
     csv_path = os.path.join(os.path.dirname(__file__), 'Dependencies', 'my_instruments.csv')
@@ -176,7 +179,7 @@ def get_all_scrips():
         
     return jsonify(scrips_data)
 
-@main_bp.route('/get_nine_thirty_data', methods=['GET','POST'])
+@main_bp.route('/api/get_nine_thirty_data', methods=['GET','POST'])
 def get_nine_thirty_data():
     try:
         data = request.get_json() or {}
@@ -377,7 +380,7 @@ def background_task(redis_client, dhan_clients, instruments):
             dc = dhan_clients[idx % len(dhan_clients)]
             executor.submit(fetch_and_cache_option_chain, dc, redis_client, scrip_id, segment)
 
-@main_bp.route('/debug/redis_status', methods=['GET'])
+@main_bp.route('/api/debug/redis_status', methods=['GET'])
 def debug_redis_status():
     """
     Returns simple counts and a small sample from Redis to verify the worker writes are visible.
@@ -405,4 +408,226 @@ def debug_redis_status():
             'sample': sample
         })
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def _send_approval_email(user_data):
+    """
+    Send email to approver (ADMIN_EMAIL) with user details.
+    Uses SMTP_* env vars if provided; otherwise logs and skips.
+    """
+    admin_email = os.getenv('ADMIN_EMAIL')
+    if not admin_email:
+        logger.warning("ADMIN_EMAIL not configured; skipping notification email")
+        return False
+
+    smtp_host = os.getenv('SMTP_HOST')
+    smtp_port = int(os.getenv('SMTP_PORT', 587))
+    smtp_user = os.getenv('SMTP_USER')
+    smtp_pass = os.getenv('SMTP_PASSWORD')
+    from_addr = os.getenv('SMTP_FROM', smtp_user or f"noreply@{os.getenv('HOSTNAME','localhost')}")
+
+    subject = f"New Signup Request: {user_data.get('email')}"
+    body = f"""A new user has signed up and requires approval:
+
+    Email: {user_data.get('email')}
+    Created At: {user_data.get('createdAt')}
+    To approve/reject, visit the admin portal.
+    """
+
+    msg = EmailMessage()
+    msg['Subject'] = subject
+    msg['From'] = from_addr
+    msg['To'] = admin_email
+    msg.set_content(body)
+
+    # Try SMTP if configured
+    if smtp_host and smtp_user and smtp_pass:
+        try:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as s:
+                s.starttls()
+                s.login(smtp_user, smtp_pass)
+                s.send_message(msg)
+            logger.info(f"Notification email sent to approver: {admin_email}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send notification email: {e}")
+            return False
+    else:
+        # SMTP not configured — log and continue
+        logger.info("SMTP not configured; email not sent. Payload:\n%s", body)
+        return False
+
+@main_bp.route('/api/signin', methods=['POST'])
+def signin():
+    try:
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({"error": "Invalid JSON"}), 400
+
+        email = data.get('email', '').strip().lower()
+        password = data.get('password')
+
+        if not email or password is None:
+            return jsonify({"error": "Email and password required"}), 400
+
+        r = current_app.redis_client
+        entries = r.lrange('users', 0, -1)
+
+        if not entries:
+            return jsonify({"error": "Invalid credentials"}), 400
+
+        # Find matching approved user
+        for entry in entries:
+            user = json.loads(entry)
+            if (user.get('email', '').lower() == email and
+                str(user.get('password')) == str(password)):  # handles number/string
+
+                if user.get('status') != 'approved':
+                    return jsonify({"error": "Account not approved"}), 403
+
+                # Success
+                return jsonify({
+                    "message": "Login successful",
+                    "user": {
+                        "email": user['email'],
+                        "status": user['status'],
+                        "expiryDate": user.get('expiryDate')
+                    }
+                }), 200
+
+        return jsonify({"error": "Invalid credentials"}), 400
+
+    except Exception as e:
+        logger.error("Signin error: %s", e)
+        return jsonify({"error": "Server error"}), 500    
+
+@main_bp.route('/api/signup', methods=['POST'])
+def signup():
+    """
+    Accepts user signup data, stores to Redis pending list and notifies the approver via email.
+    """
+    try:
+        data = request.get_json() or {}
+        email = data.get('email')
+        # phone = data.get('phone')
+        # dob = data.get('dob')
+        # state = data.get('state')
+        password = data.get('password')
+
+        if not email or not password:
+            return jsonify({'error': 'email and password are required'}), 400
+        
+        r = current_app.redis_client
+        # Check if email already exists
+        entries = r.lrange('pending_users', 0, -1) or []
+        if any(json.loads(e).get('email') == email for e in entries):
+            return jsonify({"error": "Email already registered"}), 400
+
+        # build pending user object
+        pending_user = {
+            'email': email,
+            # 'phone': phone,
+            # 'dob': dob,
+            # 'state': state,
+            'password': password,  # you may want to hash in real app
+            'createdAt': datetime.now(timezone.utc).isoformat(),
+            'status': 'pending'
+        }
+
+        # push to Redis list 'pending_users'
+        r.rpush('pending_users', json.dumps(pending_user))
+
+        # send notification to approver (best-effort)
+        _send_approval_email(pending_user)
+
+        return jsonify({'message': 'Signup submitted. Approver has been notified.'}), 201
+    except Exception as e:
+        logger.error("Error in /signup: %s", e)
+        return jsonify({'error': str(e)}), 500
+
+
+def _require_admin(req):
+    """
+    Helper to validate admin secret in header 'X-ADMIN-KEY'
+    """
+    admin_secret = os.getenv('ADMIN_SECRET')
+    provided = req.get('X_ADMIN_KEY')
+    if not admin_secret or provided != admin_secret:
+        return False
+    return True
+
+
+@main_bp.route('/api/admin/pending', methods=['GET', 'POST'])
+def admin_pending():
+    """
+    Return list of pending signups. Requires X-ADMIN-KEY header.
+    """
+    try:
+        data = request.get_json() or {}
+        if not _require_admin(data):
+            return jsonify({'error': 'unauthorized'}), 401
+
+        r = current_app.redis_client
+        entries = r.lrange('pending_users', 0, -1) or []
+        parsed = [json.loads(e) for e in entries]
+        return jsonify({'pending': parsed})
+    except Exception as e:
+        logger.error("Error in /admin/pending: %s", e)
+        return jsonify({'error': str(e)}), 500
+
+
+@main_bp.route('/api/admin/action', methods=['GET', 'POST'])
+def admin_action():
+    """
+    Approve or reject a pending user.
+    Body: { "email": "<email>", "action": "approve"|"reject", "expiryDate": "<iso date>" }
+    Requires X-ADMIN-KEY header.
+    """
+    try:
+        data = request.get_json() or {}
+        if not _require_admin(data):
+            return jsonify({'error': 'unauthorized'}), 401
+
+        email = data.get('email')
+        action = data.get('action')
+        expiry = data.get('expiryDate')
+
+        if not email or action not in ('approve', 'reject'):
+            return jsonify({'error': 'invalid payload'}), 400
+
+        r = current_app.redis_client
+        # find pending entry and remove it
+        entries = r.lrange('pending_users', 0, -1) or []
+        matched = None
+        for e in entries:
+            try:
+                obj = json.loads(e)
+            except Exception:
+                continue
+            if obj.get('email') == email:
+                matched = obj
+                # remove this specific element
+                r.lrem('pending_users', 1, e)
+                break
+
+        if not matched:
+            return jsonify({'error': 'user not found in pending list'}), 404
+
+        if action == 'approve':
+            # mark approved and push to 'users' list
+            matched['status'] = 'approved'
+            if expiry:
+                matched['expiryDate'] = expiry
+            else:
+                matched['expiryDate'] = None
+            r.rpush('users', json.dumps(matched))
+            return jsonify({'message': 'user approved'}), 200
+
+        # reject
+        matched['status'] = 'rejected'
+        r.rpush('rejected_users', json.dumps(matched))
+        return jsonify({'message': 'user rejected'}), 200
+
+    except Exception as e:
+        logger.error("Error in /admin/action: %s", e)
         return jsonify({'error': str(e)}), 500

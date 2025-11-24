@@ -32,12 +32,25 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
+    # host port binding removed to avoid conflict with nginx which binds host:3000
+    # If you want to expose frontend directly for debugging, map to a different host port (e.g. "3001:3000")
     networks:
       - app-network
     environment:
       - NODE_ENV=development
+    # NOTE: do not bind host port here to avoid conflict with nginx
+
+  nginx:
+    image: nginx:stable-alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend/public:/usr/share/nginx/html:ro   # <= mount frontend static files here
+    networks:
+      - app-network
+    depends_on:
+      - frontend
 
 networks:
   app-network:

@@ -350,7 +350,7 @@
         let scripList = [];
         async function fetchScrips() {
             try {
-                const response = await fetch(`${BASE_URL}/get_all_scrips`);
+                const response = await fetch(`${BASE_URL}/api/get_all_scrips`);
                 console.log('Raw scrips response:', response.body);
                 if (!response.ok) {
                     console.error('Failed to fetch /get_all_scrips:', response.status, response.statusText);
@@ -418,7 +418,7 @@
                 return;
             }
             try {
-                const response = await fetch(`${BASE_URL}/get_expiries`, {
+                const response = await fetch(`${BASE_URL}/api/get_expiries`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -464,7 +464,7 @@
             console.log('Fetching chain with:', JSON.stringify(requestBody, null, 2), 'strikeOption:', strikeOption, 'tableOrder:', tableOrder);
             async function attemptFetch(attempt) {
                 try {
-                    const response = await fetch(`${BASE_URL}/get_option_chain`, {
+                    const response = await fetch(`${BASE_URL}/api/get_option_chain`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json; charset=utf-8' },
                         body: JSON.stringify(requestBody)
@@ -749,7 +749,7 @@
                 return;
             }
             try {
-                response = await fetch(`${BASE_URL}/get_nine_thirty_data`, {
+                response = await fetch(`${BASE_URL}/api/get_nine_thirty_data`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -821,18 +821,12 @@
             try {
                 const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
                 if (!currentUser || !currentUser.email) {
-                    window.location.href = 'login.html';
-                    return;
-                }
-                const users = JSON.parse(localStorage.getItem('users') || '[]');
-                const userObj = users.find(u => u.email === currentUser.email);
-                if (!userObj || userObj.status !== 'approved') {
-                    alert('Your account is not approved or you are not logged in. Redirecting to login.');
-                    localStorage.removeItem('currentUser');
+                    alert('User not logged in. Redirecting to login.');
                     window.location.href = 'login.html';
                     return;
                 }
             } catch (e) {
+                alert('Authentication error. Redirecting to login.');
                 console.error('Auth check error:', e);
                 localStorage.removeItem('currentUser');
                 window.location.href = 'login.html';
