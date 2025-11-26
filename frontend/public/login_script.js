@@ -58,13 +58,24 @@ if (loginSignupLink && loginSignupLink.length) {
     });
 }
 
+// Determine backend base URL (adjust if you use nginx)
+const BASE_URL = (function(){
+    // If frontend served at localhost:3000 (nginx), backend is at localhost:8000
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return `${window.location.protocol}//127.0.0.1:8000`;
+    }
+    return window.location.origin;
+})();
+
+
 // Handle sign-up form submission
 if (signupForm) {
-    signupForm.addEventListener("submit", (e) => {
+    // Replace signup handler to POST to backend instead of localStorage
+    signupForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const formData = new FormData(signupForm);
         const email = formData.get("email");
-        const password = formData.get("password");
+        const password = simpleHash(formData.get("password")).toString();
         const policy = formData.get("policy") ? true : false;
 
         if (!email || !password || !policy) {
@@ -72,77 +83,87 @@ if (signupForm) {
             return;
         }
 
-        const data = {
-            email,
-            password: simpleHash(password),
-            policy,
-            status: "pending",
-            id: Date.now().toString() // Unique ID
-        };
-
-        let users = JSON.parse(localStorage.getItem("users") || "[]");
-        if (users.find(user => user.email === email)) {
-            alert("Error: Email already exists!");
-            return;
+        try {
+            const resp = await fetch(`${BASE_URL}/api/signup`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: email,
+                    password: password
+                }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) {
+                alert('Signup failed: ' + (data.error || resp.statusText));
+                return;
+            }
+            alert(data.message || 'Signup submitted. Admin will review and approve.');
+            signupForm.reset();
+            formPopup.classList.remove("show-signup");
+        } catch (err) {
+            console.error('Signup network error:', err);
+            alert('Network error while submitting signup. Please try again later.');
         }
-
-        users.push(data);
-        localStorage.setItem("users", JSON.stringify(users));
-
-        // Store pending user
-        let pendingUsers = JSON.parse(localStorage.getItem("pendingUsers") || "[]");
-        pendingUsers.push({ email, id: data.id });
-        localStorage.setItem("pendingUsers", JSON.stringify(pendingUsers));
-
-        alert("Sign-up successful! Awaiting admin approval. Admin can approve/reject at admin.html.");
-        signupForm.reset();
-        formPopup.classList.remove("show-signup");
-        document.body.classList.add("show-popup");
     });
 }
 
 // Handle login form submission
 if (loginForm) {
-    loginForm.addEventListener("submit", (e) => {
+    loginForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const formData = new FormData(loginForm);
         const email = formData.get("email");
-        const password = simpleHash(formData.get("password"));
+        const password = simpleHash(formData.get("password")).toString();
 
-        const users = JSON.parse(localStorage.getItem("users") || "[]");
-        const user = users.find(user => user.email === email && user.password === password);
+        try {
+            const resp = await fetch(`${BASE_URL}/api/signin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: email,
+                    password: password
+                }),
+            });
 
-        if (!user) {
-            alert("Error: Invalid email or password!");
-            return;
-        }
-
-        // Check user status
-        if (user.status === "pending") {
-            alert("Error: Your account is pending approval. Please wait for admin approval.");
-            return;
-        }
-
-        if (user.status === "rejected") {
-            alert("Error: Your account has been rejected. Contact the admin for assistance.");
-            return;
-        }
-
-        // Check if account has expired
-        if (user.expiryDate) {
-            const expiry = new Date(user.expiryDate);
-            const now = new Date();
-            if (now > expiry) {
-                alert("Error: Your account has expired. Contact the admin to renew.");
+            const data = await resp.json();
+            if (!resp.ok) {
+                alert('Login failed: ' + (data.error || resp.statusText));
                 return;
             }
-        }
+            const user = data.user;
+            // Check user status
+            if (user.status === "pending") {
+                alert("Error: Your account is pending approval. Please wait for admin approval.");
+                return;
+            }
 
-        // Successful login
-        localStorage.setItem("currentUser", JSON.stringify({ email }));
-        alert("Welcome to SOC!");
-        document.body.classList.remove("show-popup");
-        window.location.href = "main.html";
+            if (user.status === "rejected") {
+                alert("Error: Your account has been rejected. Contact the admin for assistance.");
+                return;
+            }
+
+            // Check if account has expired
+            if (user.expiryDate) {
+                const expiry = new Date(user.expiryDate);
+                const now = new Date();
+                if (now > expiry) {
+                    alert("Error: Your account has expired. Contact the admin to renew.");
+                    return;
+                }
+            }
+
+
+            alert(data.message || 'Login successful.');
+            loginForm.reset();
+            document.body.classList.remove("show-popup");
+            // With this (use the full user object from backend):
+            localStorage.setItem("currentUser", JSON.stringify(data.user));
+            document.body.classList.remove("show-popup");
+            window.location.href = "main.html";
+        } catch (err) {
+            console.error('Login network error:', err);
+            alert('Network error while logging in. Please try again later.');
+        }
     });
 }
 
