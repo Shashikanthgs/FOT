@@ -1,19 +1,53 @@
 services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
   app:
-    build: .
-    network_mode: host
-    env_file: backend/.env
-    command: ["gunicorn", "-w", "1", "-b", "0.0.0.0:8000", "--reload", "--env", "FLASK_CONFIG=backend.config.ProductionConfig", "backend:create_app()"] 
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file: .env
+    command: ["gunicorn", "-w", "4", "-b", "0.0.0.0:8000", "backend:create_app()"]
     environment:
-      - REDIS_HOST=localhost
+      - REDIS_HOST=redis          # ← use service name
       - REDIS_PORT=6379
       - FLASK_CONFIG=backend.config.ProductionConfig
+    depends_on:
+      - redis
+    restart: unless-stopped
 
-  worker:  # Background thread service
-    build: .
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     command: ["python", "-m", "backend.bg_worker"]
-    env_file: backend/.env
-    network_mode: host
+    env_file: .env
     environment:
-      - REDIS_HOST=localhost
+      - REDIS_HOST=redis          # ← same, use service name
       - REDIS_PORT=6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  redis_data:
